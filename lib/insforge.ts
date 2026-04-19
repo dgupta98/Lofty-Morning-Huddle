@@ -1,13 +1,13 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient, InsForgeClient } from "@insforge/sdk"
 
 const url = process.env.NEXT_PUBLIC_INSFORGE_URL!
 const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!
 
-let client: ReturnType<typeof createClient> | null = null
+let client: InsForgeClient | null = null
 
-export function getInsforgeClient() {
+export function getInsforgeClient(): InsForgeClient {
   if (!client) {
-    client = createClient(url, anonKey)
+    client = createClient({ baseUrl: url, anonKey })
   }
   return client
 }
