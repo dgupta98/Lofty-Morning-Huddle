@@ -36,6 +36,8 @@ export function AskBar({ queue = [], agentName = "James" }: AskBarProps) {
       if (e.key === "Escape") {
         setPanelOpen(false)
         setShowSuggestions(false)
+        setAnswer(null)
+        setQuery("")
         inputRef.current?.blur()
       }
     }
@@ -91,7 +93,7 @@ export function AskBar({ queue = [], agentName = "James" }: AskBarProps) {
     <>
       {/* Click-outside overlay */}
       {(panelOpen || showSuggestions) && (
-        <div className="fixed inset-0 z-40" onClick={() => { setPanelOpen(false); setShowSuggestions(false) }} />
+        <div className="fixed inset-0 z-40" onClick={() => { setPanelOpen(false); setShowSuggestions(false); setAnswer(null); setQuery("") }} />
       )}
 
       <div className="fixed bottom-0 left-0 right-0 z-50 px-5 pb-5 pt-3"
@@ -122,7 +124,7 @@ export function AskBar({ queue = [], agentName = "James" }: AskBarProps) {
               </div>
               <span className="text-xs font-black text-indigo-900">Lofty AOS</span>
               <span className="text-[10px] text-indigo-300 font-medium ml-1">· {query}</span>
-              <button onClick={() => setPanelOpen(false)}
+              <button onClick={() => { setPanelOpen(false); setAnswer(null); setQuery("") }}
                 className="ml-auto text-gray-300 hover:text-gray-500 transition-colors text-base leading-none">
                 ×
               </button>
