@@ -3,10 +3,10 @@
 import type { OvernightSummary, QueueItem } from "@/lib/types"
 
 const AOS_AGENTS = [
-  { icon: "📬", name: "Sales Agent", status: "Completed", action: "Sent 8 lead follow-up emails", color: "#6366f1", bg: "rgba(99,102,241,0.07)" },
-  { icon: "🏠", name: "Homeowner Agent", status: "Flagged", action: "Detected seller intent — Annette Black", color: "#8b5cf6", bg: "rgba(139,92,246,0.07)" },
-  { icon: "⚡", name: "AOS Coordinator", status: "Ranked", action: "Scored & ranked 3 priority actions", color: "#0ea5e9", bg: "rgba(14,165,233,0.07)" },
-  { icon: "📋", name: "Smart Plan Bot", status: "Updated", action: "Advanced 5 Smart Plan steps", color: "#10b981", bg: "rgba(16,185,129,0.07)" },
+  { icon: "📬", name: "Sales Agent", status: "Completed", action: "Sent 8 lead follow-up emails", color: "#6366f1", bg: "rgba(99,102,241,0.06)" },
+  { icon: "🏠", name: "Homeowner Agent", status: "Flagged", action: "Detected seller intent — Annette Black", color: "#8b5cf6", bg: "rgba(139,92,246,0.06)" },
+  { icon: "⚡", name: "AOS Coordinator", status: "Ranked", action: "Scored & ranked 3 priority actions", color: "#0ea5e9", bg: "rgba(14,165,233,0.06)" },
+  { icon: "📋", name: "Smart Plan Bot", status: "Updated", action: "Advanced 5 Smart Plan steps", color: "#10b981", bg: "rgba(16,185,129,0.06)" },
 ]
 
 const SHARED = [
@@ -14,7 +14,6 @@ const SHARED = [
   { name: "Wade Warren", sharedWith: "Ashley R.", type: "Inspection follow-up" },
 ]
 
-// Hourly activity data for bar chart (last 8 hours)
 const HOURLY_ACTIVITY = [
   { hour: "9pm", emails: 2, visits: 1 },
   { hour: "10pm", emails: 3, visits: 3 },
@@ -26,7 +25,6 @@ const HOURLY_ACTIVITY = [
   { hour: "4am", emails: 1, visits: 1 },
 ]
 
-// Lead score sparkline data
 const LEAD_SCORES = [
   { name: "Kristin", score: 88, color: "#6366f1" },
   { name: "Annette", score: 74, color: "#8b5cf6" },
@@ -41,9 +39,9 @@ function BarChart() {
   const totalW = HOURLY_ACTIVITY.length * (barW + gap) - gap
 
   return (
-    <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(99,102,241,0.1)" }}>
+    <div className="glass-card rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-extrabold text-indigo-800">Overnight Activity</p>
+        <p className="text-xs font-bold text-indigo-900">Overnight Activity</p>
         <div className="flex items-center gap-3 text-[10px] font-semibold text-gray-400">
           <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: "#6366f1" }} />Emails</span>
           <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ background: "#c4b5fd" }} />Visits</span>
@@ -57,11 +55,9 @@ function BarChart() {
           const stackH = emailH + visitH
           return (
             <g key={d.hour}>
-              {/* visits (bottom) */}
-              <rect x={x} y={chartH - visitH} width={barW} height={visitH} rx={3}
-                fill="#c4b5fd" opacity={0.85} />
-              {/* emails (top) */}
-              <rect x={x} y={chartH - stackH} width={barW} height={emailH} rx={3}
+              <rect x={x} y={chartH - visitH} width={barW} height={visitH} rx={4}
+                fill="#c4b5fd" opacity={0.7} />
+              <rect x={x} y={chartH - stackH} width={barW} height={emailH} rx={4}
                 fill="url(#barGrad)" />
               <text x={x + barW / 2} y={chartH + 14} textAnchor="middle"
                 fontSize={8} fill="#9ca3af" fontWeight={600}>{d.hour}</text>
@@ -89,20 +85,20 @@ function LeadScoreChart({ queue }: { queue: QueueItem[] }) {
     : LEAD_SCORES
 
   return (
-    <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(99,102,241,0.1)" }}>
-      <p className="text-xs font-extrabold text-indigo-800 mb-3">Lead Score Ranking</p>
-      <div className="flex flex-col gap-2.5">
+    <div className="glass-card rounded-xl p-4">
+      <p className="text-xs font-bold text-indigo-900 mb-3">Lead Score Ranking</p>
+      <div className="flex flex-col gap-3">
         {leads.map((lead, i) => (
           <div key={lead.name} className="flex items-center gap-2.5">
             <span className="text-[10px] font-bold text-gray-400 w-3">{i + 1}</span>
             <span className="text-xs font-semibold text-indigo-700 w-14 truncate">{lead.name}</span>
-            <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ background: "rgba(99,102,241,0.08)" }}>
+            <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(99,102,241,0.06)" }}>
               <div
-                className="h-full rounded-full transition-all"
+                className="h-full rounded-full"
                 style={{
                   width: `${lead.score}%`,
-                  background: `linear-gradient(90deg, ${lead.color}, ${lead.color}99)`,
-                  transition: "width 1s ease",
+                  background: `linear-gradient(90deg, ${lead.color}, ${lead.color}88)`,
+                  transition: "width 1.2s cubic-bezier(0.4,0,0.2,1)",
                 }}
               />
             </div>
@@ -129,11 +125,11 @@ function SignalDonut({ summary }: { summary: OvernightSummary }) {
   let offset = 0
 
   return (
-    <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(99,102,241,0.1)" }}>
-      <p className="text-xs font-extrabold text-indigo-800 mb-3">Signal Breakdown</p>
+    <div className="glass-card rounded-xl p-4">
+      <p className="text-xs font-bold text-indigo-900 mb-3">Signal Breakdown</p>
       <div className="flex items-center gap-4">
         <svg width={88} height={88} viewBox="0 0 88 88">
-          <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={14} stroke="rgba(99,102,241,0.08)" />
+          <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={12} stroke="rgba(99,102,241,0.06)" />
           {slices.map((slice) => {
             const dashLen = total > 0 ? (slice.value / total) * circumference : 0
             const el = (
@@ -142,7 +138,7 @@ function SignalDonut({ summary }: { summary: OvernightSummary }) {
                 cx={cx} cy={cy} r={r}
                 fill="none"
                 stroke={slice.color}
-                strokeWidth={14}
+                strokeWidth={12}
                 strokeDasharray={`${dashLen} ${circumference - dashLen}`}
                 strokeDashoffset={-offset}
                 strokeLinecap="round"
@@ -152,14 +148,14 @@ function SignalDonut({ summary }: { summary: OvernightSummary }) {
             offset += dashLen
             return el
           })}
-          <text x={cx} y={cy - 5} textAnchor="middle" fontSize={16} fontWeight={900} fill="#4338ca">{total}</text>
-          <text x={cx} y={cy + 10} textAnchor="middle" fontSize={7} fontWeight={700} fill="#9ca3af">TOTAL</text>
+          <text x={cx} y={cy - 4} textAnchor="middle" fontSize={16} fontWeight={900} fill="#4338ca">{total}</text>
+          <text x={cx} y={cy + 10} textAnchor="middle" fontSize={7} fontWeight={700} fill="#a5b4fc">TOTAL</text>
         </svg>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2.5">
           {slices.map((s) => (
             <div key={s.label} className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
-              <span className="text-[11px] font-semibold text-gray-500">{s.label}</span>
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color }} />
+              <span className="text-[11px] font-medium text-gray-500">{s.label}</span>
               <span className="text-[11px] font-black ml-auto" style={{ color: s.color }}>{s.value}</span>
             </div>
           ))}
@@ -181,24 +177,13 @@ export function AgentsPanel({ agentName, summary, queue }: AgentsPanelProps) {
   return (
     <div className="flex flex-col gap-3 h-full overflow-y-auto pr-1" style={{ paddingBottom: "6rem" }}>
       {/* Greeting */}
-      <div className="rounded-2xl p-5" style={{
-        background: "rgba(255,255,255,0.85)",
-        border: "1px solid rgba(99,102,241,0.13)",
-        boxShadow: "0 2px 12px rgba(99,102,241,0.06)",
-      }}>
-        <p className="text-[10px] font-bold text-indigo-300 tracking-widest uppercase mb-1">{today}</p>
-        <h2 className="text-xl font-black text-indigo-900 leading-tight">
+      <div className="glass-card-elevated rounded-2xl p-5">
+        <p className="text-[10px] font-bold text-indigo-300 tracking-[0.2em] uppercase mb-1.5">{today}</p>
+        <h2 className="text-xl font-black text-indigo-950 leading-tight">
           Good morning,{" "}
-          <span style={{
-            background: "linear-gradient(90deg,#6366f1,#8b5cf6)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-          }}>
-            {agentName}
-          </span>{" "}✦
+          <span className="gradient-text">{agentName}</span>{" "}✦
         </h2>
-        <p className="text-xs text-gray-400 mt-1 font-medium">Your overnight handoff is ready</p>
+        <p className="text-xs text-gray-400/80 mt-1.5 font-medium">Your overnight handoff is ready</p>
       </div>
 
       {/* Overnight stat grid */}
@@ -209,14 +194,11 @@ export function AgentsPanel({ agentName, summary, queue }: AgentsPanelProps) {
           { n: summary.buyer_matches, label: "Buyer matches", icon: "🎯", color: "#0ea5e9" },
           { n: queue.length, label: "Decisions", icon: "⚡", color: "#f59e0b" },
         ].map((s) => (
-          <div key={s.label} className="rounded-xl p-3.5 flex items-center gap-2.5" style={{
-            background: "rgba(255,255,255,0.85)",
-            border: "1px solid rgba(99,102,241,0.1)",
-          }}>
+          <div key={s.label} className="glass-card rounded-xl p-3.5 flex items-center gap-2.5 transition-all duration-200 hover:-translate-y-px">
             <span className="text-xl">{s.icon}</span>
             <div>
               <div className="text-xl font-black" style={{
-                background: `linear-gradient(135deg,${s.color},${s.color}aa)`,
+                background: `linear-gradient(135deg,${s.color},${s.color}99)`,
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
@@ -227,39 +209,31 @@ export function AgentsPanel({ agentName, summary, queue }: AgentsPanelProps) {
         ))}
       </div>
 
-      {/* Bar chart */}
       <BarChart />
-
-      {/* Lead score chart */}
       <LeadScoreChart queue={queue} />
-
-      {/* Signal donut */}
       <SignalDonut summary={summary} />
 
       {/* AOS Agents */}
       <div>
-        <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase mb-2 px-0.5">AOS agents · overnight</p>
+        <p className="text-[10px] font-bold text-gray-400/80 tracking-[0.2em] uppercase mb-2.5 px-0.5">AOS agents · overnight</p>
         <div className="flex flex-col gap-2">
           {AOS_AGENTS.map((agent) => (
-            <div key={agent.name} className="rounded-xl p-3.5 flex items-start gap-3" style={{
-              background: "rgba(255,255,255,0.85)",
-              border: "1px solid rgba(99,102,241,0.08)",
-            }}>
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0"
-                style={{ background: agent.bg, border: `1px solid ${agent.color}22` }}>
+            <div key={agent.name} className="glass-card rounded-xl p-3.5 flex items-start gap-3 transition-all duration-200 hover:-translate-y-px">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0"
+                style={{ background: agent.bg, border: `1px solid ${agent.color}15` }}>
                 {agent.icon}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-xs font-extrabold text-indigo-800">{agent.name}</span>
+                  <span className="text-xs font-bold text-indigo-900">{agent.name}</span>
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                     style={{ background: agent.bg, color: agent.color }}>
                     {agent.status}
                   </span>
                 </div>
-                <p className="text-[11px] text-gray-500 font-medium leading-tight">{agent.action}</p>
+                <p className="text-[11px] text-gray-500 font-medium leading-snug">{agent.action}</p>
               </div>
-              <div className="w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0 bg-green-400" />
+              <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-emerald-400" style={{ boxShadow: "0 0 6px rgba(52,211,153,0.4)" }} />
             </div>
           ))}
         </div>
@@ -267,15 +241,12 @@ export function AgentsPanel({ agentName, summary, queue }: AgentsPanelProps) {
 
       {/* Shared leads */}
       <div>
-        <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase mb-2 px-0.5">Shared with team</p>
+        <p className="text-[10px] font-bold text-gray-400/80 tracking-[0.2em] uppercase mb-2.5 px-0.5">Shared with team</p>
         <div className="flex flex-col gap-2">
           {SHARED.map((s) => (
-            <div key={s.name} className="rounded-xl px-3.5 py-3 flex items-center justify-between" style={{
-              background: "rgba(255,255,255,0.85)",
-              border: "1px solid rgba(99,102,241,0.08)",
-            }}>
+            <div key={s.name} className="glass-card rounded-xl px-3.5 py-3 flex items-center justify-between transition-all duration-200 hover:-translate-y-px">
               <div>
-                <div className="text-xs font-extrabold text-indigo-800">{s.name}</div>
+                <div className="text-xs font-bold text-indigo-900">{s.name}</div>
                 <div className="text-[10px] text-gray-400 font-medium">{s.type}</div>
               </div>
               <div className="flex items-center gap-1.5">
@@ -293,13 +264,14 @@ export function AgentsPanel({ agentName, summary, queue }: AgentsPanelProps) {
       {/* Escalation alert */}
       {summary.escalated_lead_name && (
         <div className="rounded-xl p-3.5 flex items-center gap-3" style={{
-          background: "rgba(251,191,36,0.08)",
-          border: "1px solid rgba(251,191,36,0.25)",
+          background: "rgba(251,191,36,0.06)",
+          border: "1px solid rgba(251,191,36,0.2)",
+          boxShadow: "0 2px 8px rgba(251,191,36,0.06)",
         }}>
           <span className="text-lg">🚨</span>
           <div>
-            <div className="text-xs font-extrabold text-amber-700">Escalation</div>
-            <div className="text-[11px] text-amber-600 font-medium">
+            <div className="text-xs font-bold text-amber-700">Escalation</div>
+            <div className="text-[11px] text-amber-600/80 font-medium">
               {summary.escalated_lead_name} flagged by Homeowner Agent
             </div>
           </div>

@@ -27,35 +27,27 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-5 relative z-10">
-      <div
-        className="w-full max-w-sm rounded-2xl p-8"
-        style={{
-          background: "rgba(255,255,255,0.82)",
-          backdropFilter: "blur(20px)",
-          border: "1px solid rgba(99,102,241,0.18)",
-          boxShadow: "0 8px 32px rgba(99,102,241,0.1)",
-        }}
-      >
-        <div className="flex items-center gap-2.5 mb-8">
+      <div className="w-full max-w-sm glass-card-elevated rounded-2xl p-8" style={{ animation: "scaleIn 0.4s ease both" }}>
+        <div className="flex items-center gap-3 mb-8">
           <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-base font-black"
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-base font-black"
             style={{
               background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-              boxShadow: "0 2px 10px rgba(99,102,241,0.35)",
+              boxShadow: "0 3px 14px rgba(99,102,241,0.3)",
             }}
           >
             L✦
           </div>
           <div>
-            <div className="text-base font-extrabold text-indigo-800">Lofty</div>
-            <div className="text-[9px] font-semibold tracking-widest uppercase text-indigo-400">
+            <div className="text-base font-extrabold text-indigo-900">Lofty</div>
+            <div className="text-[9px] font-semibold tracking-[0.15em] uppercase text-indigo-400/70">
               Morning Handoff
             </div>
           </div>
         </div>
 
-        <h1 className="text-xl font-black text-indigo-900 mb-1">Good morning ✦</h1>
-        <p className="text-sm text-gray-500 mb-6">Sign in to see your handoff.</p>
+        <h1 className="text-xl font-black text-indigo-950 mb-1">Good morning ✦</h1>
+        <p className="text-sm text-gray-500/80 mb-6">Sign in to see your handoff.</p>
 
         <form onSubmit={handleLogin} className="flex flex-col gap-3">
           <input
@@ -64,8 +56,8 @@ export default function LoginPage() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
             required
-            className="px-4 py-3 rounded-xl text-sm outline-none"
-            style={{ border: "1.5px solid rgba(99,102,241,0.25)", background: "rgba(255,255,255,0.9)" }}
+            className="px-4 py-3 rounded-xl text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-indigo-200"
+            style={{ border: "1.5px solid rgba(99,102,241,0.15)", background: "rgba(255,255,255,0.8)" }}
           />
           <input
             type="password"
@@ -73,18 +65,14 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
             required
-            className="px-4 py-3 rounded-xl text-sm outline-none"
-            style={{ border: "1.5px solid rgba(99,102,241,0.25)", background: "rgba(255,255,255,0.9)" }}
+            className="px-4 py-3 rounded-xl text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-indigo-200"
+            style={{ border: "1.5px solid rgba(99,102,241,0.15)", background: "rgba(255,255,255,0.8)" }}
           />
-          {error && <p className="text-xs text-red-500">{error}</p>}
+          {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
           <button
             type="submit"
             disabled={loading}
-            className="py-3 rounded-xl text-white text-sm font-bold transition-all hover:-translate-y-px disabled:opacity-50"
-            style={{
-              background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
-              boxShadow: "0 3px 12px rgba(99,102,241,0.35)",
-            }}
+            className="gradient-btn py-3 rounded-xl text-white text-sm font-bold disabled:opacity-50 mt-1"
           >
             {loading ? "Signing in…" : "Sign in →"}
           </button>

@@ -42,7 +42,6 @@ export default function DashboardPage() {
 
     if (wantsVideo) setView("loading")
 
-    // Restore saved order if exists
     const savedOrder = sessionStorage.getItem("lofty_queue_order")
 
     Promise.all([
@@ -52,7 +51,6 @@ export default function DashboardPage() {
       if (agentJson.name) setAgentName(agentJson.name.split(" ")[0])
       let realQueue: QueueItem[] = queueJson.queue?.length ? queueJson.queue : MOCK_QUEUE
 
-      // Restore user-saved order
       if (savedOrder) {
         try {
           const ids: string[] = JSON.parse(savedOrder)
@@ -71,9 +69,7 @@ export default function DashboardPage() {
     })
   }, [])
 
-  function handleVideoComplete() {
-    setView("transcript")
-  }
+  function handleVideoComplete() { setView("transcript") }
 
   async function handleAction(itemId: string, action: ActionTaken) {
     await fetch("/api/approve", {
@@ -94,9 +90,7 @@ export default function DashboardPage() {
     sessionStorage.setItem("lofty_queue_order", JSON.stringify(q.map(it => it.id)))
   }
 
-  function handleDragStart(idx: number) {
-    setDragIdx(idx)
-  }
+  function handleDragStart(idx: number) { setDragIdx(idx) }
 
   function handleDragOver(e: React.DragEvent, idx: number) {
     e.preventDefault()
@@ -104,11 +98,7 @@ export default function DashboardPage() {
   }
 
   function handleDrop(idx: number) {
-    if (dragIdx === null || dragIdx === idx) {
-      setDragIdx(null)
-      setDragOverIdx(null)
-      return
-    }
+    if (dragIdx === null || dragIdx === idx) { setDragIdx(null); setDragOverIdx(null); return }
     setQueue(prev => {
       const next = [...prev]
       const [moved] = next.splice(dragIdx, 1)
@@ -122,15 +112,9 @@ export default function DashboardPage() {
     setDragOverIdx(null)
   }
 
-  function handleDragEnd() {
-    setDragIdx(null)
-    setDragOverIdx(null)
-  }
+  function handleDragEnd() { setDragIdx(null); setDragOverIdx(null) }
 
-  function handleLogout() {
-    sessionStorage.clear()
-    router.push("/")
-  }
+  function handleLogout() { sessionStorage.clear(); router.push("/") }
 
   const doneCount = MOCK_QUEUE.length - queue.length
 
@@ -138,9 +122,9 @@ export default function DashboardPage() {
     <div className="flex flex-col min-h-screen relative z-10">
       <Nav agentName={agentName} onLogout={handleLogout} onPlayVideo={() => setView("video")} />
 
-      <div className="flex flex-1 gap-5 p-5 max-w-[1400px] mx-auto w-full" style={{ minHeight: "calc(100vh - 60px)" }}>
+      <div className="flex flex-1 gap-6 p-6 max-w-[1440px] mx-auto w-full" style={{ minHeight: "calc(100vh - 60px)" }}>
         {/* LEFT — agent dashboard */}
-        <div className="w-[380px] flex-shrink-0 flex flex-col">
+        <div className="w-[380px] shrink-0 flex flex-col">
           <AgentsPanel agentName={agentName} summary={MOCK_OVERNIGHT_SUMMARY} queue={queue} />
         </div>
 
@@ -148,7 +132,7 @@ export default function DashboardPage() {
         <div className="flex-1 flex flex-col gap-4 min-w-0">
           {view === "loading" && (
             <div className="flex flex-col items-center justify-center rounded-2xl"
-              style={{ height: "calc(100vh - 100px)", background: "linear-gradient(160deg,#0f0a1e 0%,#1a1040 50%,#0d1530 100%)", border: "1px solid rgba(99,102,241,0.2)" }}>
+              style={{ height: "calc(100vh - 100px)", background: "linear-gradient(160deg,#0f0a1e 0%,#1a1040 50%,#0d1530 100%)", border: "1px solid rgba(99,102,241,0.15)", boxShadow: "0 8px 40px rgba(99,102,241,0.1)" }}>
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl font-black mb-6"
                 style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 40px rgba(99,102,241,0.5)", animation: "pulseGlow 2s ease infinite" }}>
                 L✦
@@ -156,53 +140,43 @@ export default function DashboardPage() {
               <div className="flex flex-col gap-3 w-64">
                 {["Connecting to AOS agents…", "Pulling overnight lead signals…", "Building your morning briefing…"].map((s, i) => (
                   <div key={i} className="flex items-center gap-3">
-                    <div className="w-4 h-4 rounded-full flex-shrink-0 border-2 border-indigo-400 border-t-transparent"
+                    <div className="w-4 h-4 rounded-full shrink-0 border-2 border-indigo-400 border-t-transparent"
                       style={{ animation: `spin 0.8s ${i * 0.15}s linear infinite` }} />
-                    <span className="text-xs font-medium text-white/60">{s}</span>
+                    <span className="text-xs font-medium text-white/50">{s}</span>
                   </div>
                 ))}
               </div>
-              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
             </div>
           )}
 
           {view === "video" && (
             <div style={{ height: "calc(100vh - 100px)", minHeight: 560 }}>
-              <VideoPlayer
-                agentName={agentName}
-                summary={MOCK_OVERNIGHT_SUMMARY}
-                queue={queue}
-                onComplete={handleVideoComplete}
-              />
+              <VideoPlayer agentName={agentName} summary={MOCK_OVERNIGHT_SUMMARY} queue={queue} onComplete={handleVideoComplete} />
             </div>
           )}
 
           {view === "transcript" && (
-            <TranscriptView
-              queue={queue}
-              agentName={agentName}
-              onDone={() => setView("queue")}
-            />
+            <TranscriptView queue={queue} agentName={agentName} onDone={() => setView("queue")} />
           )}
 
           {view === "queue" && (
             <div className="flex flex-col gap-4 pb-24">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-black text-indigo-900">Priority Queue</h2>
+                  <h2 className="text-lg font-black text-indigo-950">Priority Queue</h2>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-xs text-gray-400 font-medium">
+                    <p className="text-xs text-gray-400/80 font-medium">
                       {queue.length} decision{queue.length !== 1 ? "s" : ""} ranked by AI · today
                     </p>
                     {doneCount > 0 && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                        style={{ background: "rgba(34,197,94,0.1)", color: "#16a34a" }}>
+                        style={{ background: "rgba(34,197,94,0.06)", color: "#16a34a" }}>
                         ✓ {doneCount} done
                       </span>
                     )}
                     {reordered && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                        style={{ background: "rgba(99,102,241,0.08)", color: "#6366f1" }}>
+                        style={{ background: "rgba(99,102,241,0.05)", color: "#6366f1" }}>
                         ⠿ custom order saved
                       </span>
                     )}
@@ -210,28 +184,27 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => play()}
-                    className="text-xs font-semibold px-3 py-2 rounded-xl transition-all hover:-translate-y-px"
-                    style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(99,102,241,0.15)", color: "#6366f1" }}>
+                    className="text-xs font-semibold px-3.5 py-2 rounded-xl transition-all duration-200 hover:-translate-y-px glass-card"
+                    style={{ color: "#6366f1" }}>
                     ▶ Audio brief
                   </button>
                   <button onClick={() => setView("video")}
-                    className="text-xs font-semibold px-3 py-2 rounded-xl transition-all hover:-translate-y-px"
-                    style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(99,102,241,0.15)", color: "#6366f1" }}>
+                    className="text-xs font-semibold px-3.5 py-2 rounded-xl transition-all duration-200 hover:-translate-y-px glass-card"
+                    style={{ color: "#6366f1" }}>
                     ✦ Replay video
                   </button>
                 </div>
               </div>
 
               {queue.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 rounded-2xl"
-                  style={{ background: "rgba(255,255,255,0.7)", border: "1px solid rgba(99,102,241,0.1)" }}>
-                  <div className="text-3xl mb-3">✦</div>
+                <div className="flex flex-col items-center justify-center py-20 glass-card-elevated rounded-2xl">
+                  <div className="text-3xl mb-3 gradient-text">✦</div>
                   <p className="text-indigo-300 font-bold text-sm">All decisions handled.</p>
-                  <p className="text-gray-400 text-xs mt-1">Great work, {agentName}.</p>
+                  <p className="text-gray-400/80 text-xs mt-1">Great work, {agentName}.</p>
                 </div>
               ) : (
                 <>
-                  <p className="text-[10px] text-gray-400 font-medium -mb-2">
+                  <p className="text-[10px] text-gray-400/70 font-medium -mb-2">
                     Drag cards to reprioritize · changes saved automatically
                   </p>
                   {queue.map((item, index) => (
@@ -254,8 +227,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="fixed bottom-20 right-5 z-40 flex items-center gap-1.5 text-[10px] font-semibold px-3 py-1.5 rounded-full"
-        style={{ background: "rgba(255,255,255,0.85)", backdropFilter: "blur(10px)", border: "1px solid rgba(99,102,241,0.15)", color: "#6366f1", boxShadow: "0 2px 10px rgba(99,102,241,0.1)" }}>
+      {/* Powered by badge */}
+      <div className="fixed bottom-20 right-5 z-40 flex items-center gap-1.5 text-[10px] font-semibold px-3 py-1.5 rounded-full glass-card"
+        style={{ color: "#6366f1" }}>
         <span className="w-1.5 h-1.5 rounded-full" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }} />
         Powered by Lofty AOS
       </div>
