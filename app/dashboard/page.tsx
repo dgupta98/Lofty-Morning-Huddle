@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Nav } from "@/components/nav"
 import { HeroHeader } from "@/components/hero-header"
 import { ActionCard } from "@/components/action-card"
@@ -9,20 +9,51 @@ import { useAudioBrief } from "@/components/audio-brief"
 import { MOCK_AGENT_NAME, MOCK_OVERNIGHT_SUMMARY, MOCK_QUEUE } from "@/lib/mock-data"
 import type { ActionTaken, QueueItem } from "@/lib/types"
 
+const AGENT_ID = process.env.NEXT_PUBLIC_DEMO_AGENT_ID ?? ""
+
 export default function DashboardPage() {
-  const [queue] = useState<QueueItem[]>(MOCK_QUEUE)
-  const { play } = useAudioBrief(MOCK_AGENT_NAME, MOCK_OVERNIGHT_SUMMARY, queue[0]?.lead.name ?? "")
+  const [queue, setQueue] = useState<QueueItem[]>(MOCK_QUEUE)
+  const [agentName, setAgentName] = useState(MOCK_AGENT_NAME)
+  const { play } = useAudioBrief(agentName, MOCK_OVERNIGHT_SUMMARY, queue[0]?.lead.name ?? "")
+
+  useEffect(() => {
+    if (!AGENT_ID) return
+    fetch(`/api/queue?agentId=${AGENT_ID}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.queue?.length) setQueue(json.queue)
+      })
+      .catch(() => {})
+
+    fetch(`/api/agent?agentId=${AGENT_ID}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.name) setAgentName(json.name.split(" ")[0])
+      })
+      .catch(() => {})
+  }, [])
 
   async function handleAction(itemId: string, action: ActionTaken) {
-    console.log("Action:", action, "on item:", itemId)
-    await new Promise((r) => setTimeout(r, 600))
+    await fetch("/api/approve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        queueItemId: itemId,
+        agentId: AGENT_ID,
+        actionTaken: action,
+        scoreBreakdown: {},
+        llmExplanation: null,
+      }),
+    }).catch(() => {})
+
+    setQueue((prev) => prev.filter((item) => item.id !== itemId))
   }
 
   return (
     <div className="relative z-10">
-      <Nav agentName={MOCK_AGENT_NAME} />
+      <Nav agentName={agentName} />
       <main className="max-w-2xl mx-auto px-5 pt-7 pb-36">
-        <HeroHeader agentName={MOCK_AGENT_NAME} summary={MOCK_OVERNIGHT_SUMMARY} onPlayAudio={play} />
+        <HeroHeader agentName={agentName} summary={MOCK_OVERNIGHT_SUMMARY} onPlayAudio={play} />
         <div className="flex flex-col gap-3.5">
           {queue.map((item, index) => (
             <ActionCard key={item.id} item={item} index={index} onAction={handleAction} />

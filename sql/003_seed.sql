@@ -1,15 +1,24 @@
 -- sql/003_seed.sql
--- Replace AGENT_UUID with your actual agent user UUID after signing up
+-- James Doe UUID: 3b6e5282-dc35-4f89-b33f-fe464d627408
+
+insert into agents (id, name, email, goals, quota)
+values (
+  '3b6e5282-dc35-4f89-b33f-fe464d627408',
+  'James Doe',
+  'james@demo.com',
+  'Close 8 transactions this quarter, grow seller pipeline',
+  8
+) on conflict (id) do nothing;
 
 insert into leads (id, agent_id, name, phone, email, lead_score, opportunity_type, transaction_deadline_days)
 values
-  ('11111111-0000-0000-0000-000000000001', 'AGENT_UUID',
+  ('11111111-0000-0000-0000-000000000001', '3b6e5282-dc35-4f89-b33f-fe464d627408',
    'Kristin Watson', '+1 (602) 555-0142', 'kristin.watson@email.com',
    88, 'High Interest', null),
-  ('11111111-0000-0000-0000-000000000002', 'AGENT_UUID',
+  ('11111111-0000-0000-0000-000000000002', '3b6e5282-dc35-4f89-b33f-fe464d627408',
    'Annette Black', '+1 (602) 555-0198', 'annette.black@email.com',
    74, 'Seller Intent', null),
-  ('11111111-0000-0000-0000-000000000003', 'AGENT_UUID',
+  ('11111111-0000-0000-0000-000000000003', '3b6e5282-dc35-4f89-b33f-fe464d627408',
    'Wade Warren', '+1 (602) 555-0221', 'wade.warren@email.com',
    61, 'Deadline', 3);
 
@@ -31,17 +40,17 @@ values
 insert into priority_queue
   (agent_id, lead_id, priority_score, rank, explanation, recommended_action, confidence, date)
 values
-  ('AGENT_UUID', '11111111-0000-0000-0000-000000000001',
+  ('3b6e5282-dc35-4f89-b33f-fe464d627408', '11111111-0000-0000-0000-000000000001',
    0.883, 1,
    'Kristin has viewed this listing 6 times in 48 hours and returned late at night — a strong buying signal. The Sales Agent''s overnight outreach was opened twice.',
    '📞 Call her at 10:00 AM and offer the Saturday tour slot.',
    0.94, current_date),
-  ('AGENT_UUID', '11111111-0000-0000-0000-000000000002',
+  ('3b6e5282-dc35-4f89-b33f-fe464d627408', '11111111-0000-0000-0000-000000000002',
    0.741, 2,
    'Homeowner Agent flagged seller intent. Annette browsed comparable listings and opened two market reports overnight — classic pre-listing research.',
    '📋 Send a personalized CMA and request a 15-min check-in call.',
    0.81, current_date),
-  ('AGENT_UUID', '11111111-0000-0000-0000-000000000003',
+  ('3b6e5282-dc35-4f89-b33f-fe464d627408', '11111111-0000-0000-0000-000000000003',
    0.612, 3,
    'Inspection contingency expires in 3 days. Smart Plan step overdue by 36h. No logged contact since Wednesday.',
    '📅 Confirm inspection appointment and update Smart Plan status.',
