@@ -12,22 +12,48 @@ export async function getQueueForAgent(agentId: string): Promise<QueueItem[]> {
   const client = getServerClient()
   const today = new Date().toISOString().split("T")[0]
 
-  const { data, error } = await client.database
+  const { data: queueRows, error: qErr } = await client.database
     .from("priority_queue")
-    .select(`*, lead:leads(*, signals:lead_signals(*))`)
+    .select("*")
     .eq("agent_id", agentId)
     .eq("date", today)
     .order("rank", { ascending: true })
     .limit(3)
 
-  if (error) throw new Error(error.message)
+  if (qErr) throw new Error(qErr.message)
+  if (!queueRows?.length) return []
+
+  const leadIds = (queueRows as Array<{ lead_id: string }>).map((r) => r.lead_id)
+
+  const { data: leads, error: lErr } = await client.database
+    .from("leads")
+    .select("*")
+    .in("id", leadIds)
+
+  if (lErr) throw new Error(lErr.message)
+
+  const { data: signals, error: sErr } = await client.database
+    .from("lead_signals")
+    .select("*")
+    .in("lead_id", leadIds)
+
+  if (sErr) throw new Error(sErr.message)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return ((data ?? []) as any[]).map((row) => ({
+  const leadsMap = Object.fromEntries((leads as any[]).map((l) => [l.id, l]))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const signalsMap: Record<string, any[]> = {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const sig of (signals as any[]) ?? []) {
+    signalsMap[sig.lead_id] = [...(signalsMap[sig.lead_id] ?? []), sig]
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (queueRows as any[]).map((row) => ({
     ...row,
     lead: {
-      ...row.lead,
-      signals: row.lead?.signals ?? [],
+      ...leadsMap[row.lead_id],
+      signals: signalsMap[row.lead_id] ?? [],
     },
   })) as QueueItem[]
 }
