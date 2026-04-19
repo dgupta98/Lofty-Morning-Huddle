@@ -2,16 +2,20 @@
 
 import { useState, useEffect } from "react"
 import type { QueueItem } from "@/lib/types"
+import { type ConfidenceWeights, calculateConfidence, loadWeights, WEIGHT_META } from "@/lib/confidence"
 
 interface WhyDrawerProps {
   item: QueueItem
   open: boolean
   onClose: () => void
+  weights?: ConfidenceWeights
 }
 
-export function WhyDrawer({ item, open, onClose }: WhyDrawerProps) {
+export function WhyDrawer({ item, open, onClose, weights: propWeights }: WhyDrawerProps) {
   const [aiExplanation, setAiExplanation] = useState<string | null>(item.explanation)
   const [loadingExplanation, setLoadingExplanation] = useState(false)
+  const weights = propWeights ?? loadWeights()
+  const { total: confScore, factors } = calculateConfidence(item, weights)
 
   useEffect(() => {
     if (!open) return
@@ -40,25 +44,6 @@ export function WhyDrawer({ item, open, onClose }: WhyDrawerProps) {
 
   if (!open) return null
 
-  const scoreComponents = [
-    { label: "Lead Score", value: String(item.lead.lead_score), weight: "30%", bar: item.lead.lead_score },
-    {
-      label: "Opportunity Type", value: item.lead.opportunity_type, weight: "20%",
-      bar: item.lead.opportunity_type === "High Interest" ? 100 : item.lead.opportunity_type === "Seller Intent" ? 80 : item.lead.opportunity_type === "Back-to-Site" ? 70 : 50,
-    },
-    {
-      label: "Transaction Deadline",
-      value: item.lead.transaction_deadline_days ? `${item.lead.transaction_deadline_days} days` : "None",
-      weight: "15%",
-      bar: item.lead.transaction_deadline_days ? Math.max(0, 100 - item.lead.transaction_deadline_days * 10) : 0,
-    },
-    {
-      label: "Response Urgency",
-      value: item.lead.missed_response_minutes > 0 ? `${item.lead.missed_response_minutes} min overdue` : "On time",
-      weight: "15%",
-      bar: Math.min(100, item.lead.missed_response_minutes),
-    },
-  ]
 
   return (
     <div className="fixed inset-0 z-50 flex" onClick={onClose}>
@@ -99,25 +84,35 @@ export function WhyDrawer({ item, open, onClose }: WhyDrawerProps) {
         </div>
 
         <div>
-          <p className="text-[10px] font-bold text-indigo-400/80 tracking-[0.15em] uppercase mb-3">Score Breakdown</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-bold text-indigo-400/80 tracking-[0.15em] uppercase">Confidence Breakdown</p>
+            <span className="text-sm font-black gradient-text">{Math.round(confScore * 100)}%</span>
+          </div>
           <div className="flex flex-col gap-3.5">
-            {scoreComponents.map((c) => (
-              <div key={c.label}>
-                <div className="flex justify-between items-center mb-1.5">
-                  <span className="text-xs font-semibold text-gray-700">{c.label}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{c.value}</span>
-                    <span className="text-[10px] text-indigo-400/70 font-medium">w={c.weight}</span>
+            {(Object.keys(factors) as (keyof ConfidenceWeights)[]).map((key) => {
+              const meta = WEIGHT_META[key]
+              const f = factors[key]
+              return (
+                <div key={key}>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm leading-none">{meta.icon}</span>
+                      <span className="text-xs font-semibold text-gray-700">{meta.label}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-400 font-mono">{f.raw}% raw</span>
+                      <span className="text-xs font-bold" style={{ color: meta.color }}>{f.weighted}pts</span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(99,102,241,0.06)" }}>
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${f.weighted}%`, background: meta.color }}
+                    />
                   </div>
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(99,102,241,0.06)" }}>
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${c.bar}%`, background: "linear-gradient(90deg, #6366f1, #8b5cf6)" }}
-                  />
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
@@ -140,11 +135,12 @@ export function WhyDrawer({ item, open, onClose }: WhyDrawerProps) {
         )}
 
         <div
-          className="mt-auto p-3.5 rounded-xl flex items-center justify-between"
+          className="mt-auto p-3.5 rounded-xl text-center"
           style={{ background: "rgba(99,102,241,0.03)", border: "1px solid rgba(99,102,241,0.08)" }}
         >
-          <span className="text-xs font-semibold text-gray-600">Model confidence</span>
-          <span className="text-sm font-black gradient-text">{Math.round(item.confidence * 100)}%</span>
+          <p className="text-[10px] text-gray-400 font-medium">
+            Weights tunable via <span className="text-indigo-400 font-bold">⚙ Tune Model</span> in the queue header
+          </p>
         </div>
       </div>
     </div>

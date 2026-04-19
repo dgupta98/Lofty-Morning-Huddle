@@ -351,7 +351,11 @@ export function VideoPlayer({ agentName, summary, queue, onComplete }: VideoPlay
     return () => window.removeEventListener("keydown", handler)
   }, [slide, goToSlide])
 
+  const pausedRef = useRef(paused)
+  pausedRef.current = paused
+
   // Audio narration — drives slide advancement via onend
+  // NOTE: paused is intentionally NOT a dep — we use speechSynthesis.pause/resume instead
   useEffect(() => {
     if (typeof window === "undefined" || !window.speechSynthesis) return
     window.speechSynthesis.cancel()
@@ -373,13 +377,13 @@ export function VideoPlayer({ agentName, summary, queue, onComplete }: VideoPlay
     utter.onend = () => {
       setIsSpeaking(false)
       setProgress(100)
-      if (!paused) setTimeout(() => advance(), 700)
+      if (!pausedRef.current) setTimeout(() => advance(), 700)
     }
 
     // If speech errors, fall back to safety timer
     utter.onerror = () => {
       setIsSpeaking(false)
-      if (!paused) setTimeout(() => advance(), 1000)
+      if (!pausedRef.current) setTimeout(() => advance(), 1000)
     }
 
     window.speechSynthesis.speak(utter)
@@ -392,7 +396,17 @@ export function VideoPlayer({ agentName, summary, queue, onComplete }: VideoPlay
       setIsSpeaking(false)
       if (safetyRef.current) { clearTimeout(safetyRef.current); safetyRef.current = null }
     }
-  }, [slide, muted, paused, advance]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [slide, muted, advance]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pause/resume speech without restarting the utterance
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return
+    if (paused) {
+      window.speechSynthesis.pause()
+    } else {
+      window.speechSynthesis.resume()
+    }
+  }, [paused])
 
   useEffect(() => {
     return () => {
@@ -419,6 +433,25 @@ export function VideoPlayer({ agentName, summary, queue, onComplete }: VideoPlay
       border: "1px solid rgba(99,102,241,0.15)",
       boxShadow: "0 8px 48px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.2)",
     }}>
+      <style>{`
+        @keyframes scanRight { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0% 0 0); } }
+        @keyframes floatY { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-8px); } }
+        @keyframes floatY2 { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
+        @keyframes ringExpand { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(2.8); opacity: 0; } }
+        @keyframes glowBurst { 0% { transform: scale(0.7); opacity: 0; } 60% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes slideFromRight { from { transform: translateX(50px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideFromLeft { from { transform: translateX(-50px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideFromTop { from { transform: translateY(-30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes slideFromBottom { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes shimmerSweep { from { background-position: -200% center; } to { background-position: 200% center; } }
+        @keyframes expandBar { from { width: 0%; } to { width: 100%; } }
+        @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 70% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes gradientShift { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+        @keyframes scanLine { from { top: 0%; } to { top: 100%; } }
+        @keyframes cardFlip { from { transform: rotateY(90deg) scale(0.8); opacity: 0; } to { transform: rotateY(0deg) scale(1); opacity: 1; } }
+        @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        @keyframes glowPulse { 0%,100% { box-shadow: 0 0 20px rgba(99,102,241,0.3); } 50% { box-shadow: 0 0 50px rgba(99,102,241,0.7), 0 0 80px rgba(139,92,246,0.3); } }
+      `}</style>
       {/* Animated canvas background */}
       <ParticleCanvas slideIndex={slide} />
 
@@ -478,7 +511,7 @@ export function VideoPlayer({ agentName, summary, queue, onComplete }: VideoPlay
       }}>
         {s.type === "intro" && <IntroSlide agentName={agentName} />}
         {s.type === "stats" && <StatsSlide summary={summary} queueLen={queue.length} />}
-        {s.type === "lead" && "item" in s && <LeadSlide item={s.item} rank={s.rank} total={queue.length} />}
+        {s.type === "lead" && "item" in s && <LeadSlide key={s.item.id} item={s.item} rank={s.rank} total={queue.length} />}
         {s.type === "cta" && <CTASlide count={queue.length} onComplete={() => { window.speechSynthesis?.cancel(); onComplete() }} />}
       </div>
 
@@ -542,54 +575,105 @@ export function VideoPlayer({ agentName, summary, queue, onComplete }: VideoPlay
 // ── Slide Components ──
 
 function IntroSlide({ agentName }: { agentName: string }) {
-  const [show, setShow] = useState(false)
-  useEffect(() => { const t = setTimeout(() => setShow(true), 100); return () => clearTimeout(t) }, [])
+  const [phase, setPhase] = useState(0)
+  useEffect(() => {
+    const ts = [
+      setTimeout(() => setPhase(1), 100),
+      setTimeout(() => setPhase(2), 600),
+      setTimeout(() => setPhase(3), 1100),
+      setTimeout(() => setPhase(4), 1600),
+    ]
+    return () => ts.forEach(clearTimeout)
+  }, [])
 
   return (
-    <div className="text-center flex flex-col items-center gap-5 w-full max-w-md">
-      {/* Animated logo */}
-      <div style={{ animation: "scaleIn 0.6s ease both" }}>
-        <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-black relative"
-          style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 60px rgba(99,102,241,0.5), 0 0 120px rgba(99,102,241,0.2)" }}>
-          L✦
-          {/* Orbiting dot */}
-          <div className="absolute w-2 h-2 rounded-full" style={{
-            background: "#c084fc",
-            boxShadow: "0 0 8px rgba(192,132,252,0.6)",
-            animation: "orbit 3s linear infinite",
-            transformOrigin: "40px 40px",
-            top: -4, left: "calc(50% - 4px)",
-          }} />
+    <div className="text-center flex flex-col items-center gap-5 w-full max-w-md relative">
+      {/* Scan line sweep on entry */}
+      <div className="absolute inset-x-0 h-px pointer-events-none z-10"
+        style={{ background: "linear-gradient(90deg, transparent, rgba(129,140,248,0.6), transparent)", animation: "scanLine 1.2s ease both", opacity: phase >= 1 ? 0 : 1 }} />
+
+      {/* Logo with multiple orbiting particles */}
+      <div style={{ animation: "glowBurst 0.8s ease both" }}>
+        <div className="relative w-24 h-24 flex items-center justify-center">
+          <div className="w-24 h-24 rounded-2xl flex items-center justify-center text-white text-4xl font-black"
+            style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 60px rgba(99,102,241,0.5), 0 0 120px rgba(99,102,241,0.2)", animation: "glowPulse 3s ease infinite" }}>
+            L✦
+          </div>
+          {/* 3 orbiting dots at different speeds */}
+          {[
+            { color: "#c084fc", dur: "2.5s", delay: "0s", origin: "48px 48px", size: 10 },
+            { color: "#818cf8", dur: "3.5s", delay: "0.8s", origin: "52px 52px", size: 7 },
+            { color: "#60a5fa", dur: "4.5s", delay: "1.5s", origin: "44px 44px", size: 5 },
+          ].map((o, i) => (
+            <div key={i} className="absolute rounded-full"
+              style={{
+                width: o.size, height: o.size,
+                background: o.color,
+                boxShadow: `0 0 ${o.size * 2}px ${o.color}99`,
+                animation: `orbit ${o.dur} ${o.delay} linear infinite`,
+                transformOrigin: o.origin,
+                top: -(o.size / 2), left: `calc(50% - ${o.size / 2}px)`,
+              }} />
+          ))}
+          {/* Expanding ring */}
+          <div className="absolute inset-0 rounded-2xl pointer-events-none"
+            style={{ border: "2px solid rgba(99,102,241,0.4)", animation: "ringExpand 2s ease-in-out infinite" }} />
         </div>
       </div>
 
-      <div style={{ opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(12px)", transition: "all 0.6s 0.2s ease" }}>
-        <p className="text-white/35 text-xs font-semibold mb-3 tracking-[0.25em] uppercase">Good morning</p>
-        <h2 className="text-4xl font-black leading-tight" style={{
-          background: "linear-gradient(90deg,#fff 30%,#c4b5fd 70%,#818cf8)",
-          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
-        }}>
-          {agentName} ✦
+      {/* AOS live badge — floats */}
+      <div style={{ opacity: phase >= 1 ? 1 : 0, transition: "opacity 0.4s ease", animation: phase >= 1 ? "floatY 3s ease-in-out infinite" : "none" }}>
+        <div className="flex items-center gap-2 text-[10px] font-bold px-3 py-1.5 rounded-full"
+          style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.3)", color: "#a78bfa" }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{ animation: "breathe 1.5s ease infinite" }} />
+          AOS Morning Handoff · Live
+        </div>
+      </div>
+
+      {/* Agent name — sweeps in */}
+      <div style={{ opacity: phase >= 2 ? 1 : 0, transition: "opacity 0.2s ease" }}>
+        <p className="text-white/35 text-xs font-semibold mb-2 tracking-[0.25em] uppercase"
+          style={{ animation: phase >= 2 ? "slideFromTop 0.5s ease both" : "none" }}>
+          Good morning
+        </p>
+        <h2 className="text-5xl font-black leading-tight overflow-hidden"
+          style={{ animation: phase >= 2 ? "scanRight 0.8s ease both" : "none" }}>
+          <span style={{
+            background: "linear-gradient(90deg,#fff 20%,#c4b5fd 60%,#818cf8 100%)",
+            backgroundSize: "200% auto",
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
+            animation: "gradientShift 4s ease infinite",
+          }}>
+            {agentName} ✦
+          </span>
         </h2>
-        <p className="text-white/25 text-xs mt-3 font-medium">
+        <p className="text-white/25 text-xs mt-2 font-medium"
+          style={{ animation: phase >= 2 ? "fadeSlideUp 0.5s 0.3s ease both" : "none" }}>
           {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
         </p>
       </div>
 
-      <p className="text-white/40 text-sm max-w-xs leading-relaxed"
-        style={{ opacity: show ? 1 : 0, transition: "opacity 0.6s 0.5s ease" }}>
-        Lofty AOS worked through the night. Here&apos;s your briefing.
-      </p>
-
-      {/* Decorative line */}
-      <div className="w-16 h-px mt-2" style={{
-        background: "linear-gradient(90deg, transparent, rgba(129,140,248,0.4), transparent)",
-        animation: show ? "fadeSlideUp 0.5s 0.7s ease both" : "none",
-      }} />
+      {/* Floating stat badges */}
+      <div className="flex gap-3" style={{ opacity: phase >= 3 ? 1 : 0, transition: "opacity 0.4s ease" }}>
+        {[
+          { icon: "📬", label: "14 follow-ups", color: "#818cf8", delay: "0s", dur: "2.8s" },
+          { icon: "🏠", label: "2 showings",    color: "#a78bfa", delay: "0.2s", dur: "3.2s" },
+          { icon: "⚡", label: "5 decisions",   color: "#f59e0b", delay: "0.4s", dur: "2.5s" },
+        ].map((b, i) => (
+          <div key={i} className="flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1.5 rounded-xl"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: `1px solid ${b.color}33`,
+              color: b.color,
+              animation: `slideFromBottom 0.4s ${0.1 * i}s ease both, floatY ${b.dur} ${b.delay} ease-in-out infinite`,
+            }}>
+            {b.icon} {b.label}
+          </div>
+        ))}
+      </div>
 
       {/* Keyboard hints */}
-      <div className="flex items-center gap-3 mt-1"
-        style={{ opacity: show ? 1 : 0, transition: "opacity 0.5s 0.9s ease" }}>
+      <div className="flex items-center gap-3" style={{ opacity: phase >= 4 ? 0.5 : 0, transition: "opacity 0.5s ease" }}>
         {[["Space", "pause"], ["←→", "navigate"], ["M", "mute"], ["Esc", "skip"]].map(([key, label]) => (
           <div key={key} className="flex items-center gap-1">
             <kbd className="text-[9px] font-mono text-white/25 bg-white/5 border border-white/10 rounded px-1 py-0.5">{key}</kbd>
@@ -602,44 +686,62 @@ function IntroSlide({ agentName }: { agentName: string }) {
 }
 
 function StatsSlide({ summary, queueLen }: { summary: OvernightSummary; queueLen: number }) {
+  const [phase, setPhase] = useState(0)
+  useEffect(() => {
+    const ts = [
+      setTimeout(() => setPhase(1), 100),
+      setTimeout(() => setPhase(2), 400),
+    ]
+    return () => ts.forEach(clearTimeout)
+  }, [])
+
   const stats = [
-    { n: summary.lead_followups, label: "Follow-ups", icon: "📬", color: "#818cf8" },
-    { n: summary.showing_requests_accepted, label: "Showings", icon: "🏠", color: "#a78bfa" },
-    { n: summary.buyer_matches, label: "Matches", icon: "🎯", color: "#c084fc" },
-    { n: queueLen, label: "Waiting", icon: "⚡", color: "#f59e0b" },
+    { n: summary.lead_followups,            label: "Follow-ups", icon: "📬", color: "#818cf8", from: "slideFromLeft" },
+    { n: summary.showing_requests_accepted, label: "Showings",   icon: "🏠", color: "#a78bfa", from: "slideFromRight" },
+    { n: summary.buyer_matches,             label: "Matches",    icon: "🎯", color: "#c084fc", from: "slideFromLeft" },
+    { n: queueLen,                          label: "Waiting",    icon: "⚡", color: "#f59e0b", from: "slideFromRight" },
   ]
 
   return (
     <div className="w-full max-w-lg flex flex-col gap-5 text-center">
-      <p className="text-white/30 text-xs font-bold tracking-[0.25em] uppercase"
-        style={{ animation: "fadeSlideUp 0.4s ease both" }}>
-        Overnight activity
-      </p>
+      {/* Title with scan sweep */}
+      <div style={{ overflow: "hidden", animation: phase >= 1 ? "scanRight 0.7s ease both" : "none" }}>
+        <p className="text-white/30 text-xs font-bold tracking-[0.25em] uppercase">Overnight activity</p>
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
         {stats.map((s, i) => (
-          <div key={i} className="rounded-2xl p-4 text-center relative overflow-hidden"
+          <div key={i} className="rounded-2xl p-5 text-center relative overflow-hidden"
             style={{
               background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.06)",
+              border: `1px solid ${s.color}22`,
               backdropFilter: "blur(8px)",
-              animation: `fadeSlideUp 0.5s ${0.1 + i * 0.1}s ease both`,
+              animation: phase >= 2 ? `${s.from} 0.5s ${i * 0.12}s ease both` : "none",
+              opacity: phase >= 2 ? 1 : 0,
             }}>
-            {/* Accent glow */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-px" style={{ background: `linear-gradient(90deg, transparent, ${s.color}60, transparent)` }} />
-            <div className="text-2xl mb-2">{s.icon}</div>
-            <div className="text-3xl font-black text-white mb-0.5">
-              <AnimatedNumber value={s.n} duration={1000 + i * 200} />
+            {/* Glowing top border */}
+            <div className="absolute top-0 left-0 right-0 h-px"
+              style={{ background: `linear-gradient(90deg, transparent, ${s.color}80, transparent)` }} />
+            {/* Corner glow */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-20 rounded-full pointer-events-none"
+              style={{ background: `radial-gradient(circle, ${s.color}15 0%, transparent 70%)` }} />
+
+            <div className="text-3xl mb-3" style={{ animation: phase >= 2 ? `popIn 0.5s ${i * 0.12 + 0.1}s ease both` : "none", opacity: phase >= 2 ? 1 : 0 }}>
+              {s.icon}
             </div>
-            <div className="text-white/30 text-[10px] font-semibold">{s.label}</div>
+            <div className="text-4xl font-black text-white mb-1" style={{ color: s.color, textShadow: `0 0 20px ${s.color}60` }}>
+              <AnimatedNumber value={s.n} duration={900 + i * 150} />
+            </div>
+            <div className="text-white/40 text-[11px] font-semibold tracking-wide">{s.label}</div>
           </div>
         ))}
       </div>
 
       {summary.escalated_lead_name && (
         <div className="flex items-center justify-center gap-2 text-xs rounded-xl px-4 py-2.5 mx-auto"
-          style={{ background: "rgba(251,146,60,0.08)", border: "1px solid rgba(251,146,60,0.15)", animation: "fadeSlideUp 0.5s 0.6s ease both" }}>
-          <span>🚨</span>
+          style={{ background: "rgba(251,146,60,0.08)", border: "1px solid rgba(251,146,60,0.2)", animation: "slideFromBottom 0.5s 0.6s ease both",
+            boxShadow: "0 0 20px rgba(251,146,60,0.1)" }}>
+          <span style={{ animation: "breathe 1.5s ease infinite" }}>🚨</span>
           <span className="text-orange-300/80 font-medium">{summary.escalated_lead_name} escalated by Homeowner Agent</span>
         </div>
       )}
@@ -668,50 +770,84 @@ const BUY_SELL: Partial<Record<string, BuySellCfg>> = {
 }
 
 function LeadSlide({ item, rank, total }: { item: QueueItem; rank: number; total: number }) {
+  const [step, setStep] = useState(0)
   const charEmoji = CHAR_EMOJI[item.lead.name[0]?.toUpperCase()] ?? "👤"
   const bs = BUY_SELL[item.lead.opportunity_type]
+  const accentColor = bs?.color ?? "#6366f1"
+
+  useEffect(() => {
+    setStep(0)
+    const ts = [
+      setTimeout(() => setStep(1), 80),
+      setTimeout(() => setStep(2), 250),
+      setTimeout(() => setStep(3), 450),
+      setTimeout(() => setStep(4), 650),
+      setTimeout(() => setStep(5), 900),
+      setTimeout(() => setStep(6), 1150),
+    ]
+    return () => ts.forEach(clearTimeout)
+  }, [item.id])
 
   return (
-    <div className="w-full max-w-lg flex flex-col gap-4">
-      {/* Header row */}
-      <div className="flex items-center justify-between" style={{ animation: "fadeSlideUp 0.4s ease both" }}>
+    <div className="w-full max-w-lg flex flex-col gap-3 relative">
+      {/* Ambient spotlight behind avatar */}
+      <div className="absolute -top-8 -left-4 w-48 h-48 rounded-full pointer-events-none"
+        style={{ background: `radial-gradient(circle, ${accentColor}18 0%, transparent 70%)`,
+          opacity: step >= 2 ? 1 : 0, transition: "opacity 0.8s ease" }} />
+
+      {/* Header: rank + buy/sell badge */}
+      <div className="flex items-center justify-between"
+        style={{ animation: step >= 1 ? "slideFromTop 0.5s ease both" : "none", opacity: step >= 1 ? 1 : 0 }}>
         <div className="flex items-center gap-2">
-          <span className="text-white/20 text-[10px] font-bold tracking-[0.2em] uppercase">#{rank} of {total}</span>
-          <div className="w-px h-3 bg-white/10" />
-          {/* Buy / Sell indicator */}
+          <span className="text-[10px] font-bold tracking-[0.2em] uppercase"
+            style={{ color: `${accentColor}80` }}>Priority #{rank} of {total}</span>
           {bs && (
             <span className="text-[11px] font-black px-3 py-1 rounded-full flex items-center gap-1.5"
-              style={{ background: bs.bg, color: bs.color, border: `1px solid ${bs.border}`, letterSpacing: "0.08em" }}>
+              style={{ background: bs.bg, color: bs.color, border: `1px solid ${bs.border}`,
+                letterSpacing: "0.08em", animation: step >= 1 ? "popIn 0.4s 0.15s ease both" : "none" }}>
               {bs.icon} {bs.label}
             </span>
           )}
         </div>
-        <ScoreRing score={item.lead.lead_score} />
+        <div style={{ animation: step >= 1 ? "slideFromRight 0.5s 0.1s ease both" : "none", opacity: step >= 1 ? 1 : 0 }}>
+          <ScoreRing score={item.lead.lead_score} />
+        </div>
       </div>
 
-      {/* Lead info */}
-      <div className="flex items-center gap-4" style={{ animation: "fadeSlideUp 0.4s 0.1s ease both" }}>
-        {/* Avatar + character emoji */}
-        <div className="relative shrink-0">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-black"
-            style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 30px rgba(99,102,241,0.35)" }}>
+      {/* Avatar + name row */}
+      <div className="flex items-center gap-4">
+        {/* Avatar with double expanding rings */}
+        <div className="relative shrink-0"
+          style={{ animation: step >= 2 ? "glowBurst 0.7s ease both" : "none", opacity: step >= 2 ? 1 : 0 }}>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-black relative z-10"
+            style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: `0 0 30px ${accentColor}50` }}>
             {item.lead.name[0]}
           </div>
-          {/* Character emoji floating top-right */}
-          <div className="absolute -top-3 -right-3 text-2xl leading-none select-none"
-            style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.5))", animation: "scaleIn 0.4s 0.15s ease both" }}>
+          {/* Character emoji */}
+          <div className="absolute -top-3 -right-3 text-2xl leading-none select-none z-20"
+            style={{ filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.6))", animation: step >= 2 ? "popIn 0.5s 0.2s ease both" : "none" }}>
             {charEmoji}
           </div>
-          {/* Status badge bottom-right */}
-          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
-            style={{ background: "#0d1030", border: `2px solid ${bs?.color ?? "#6366f1"}` }}>
-            {rank === 1 ? "🔥" : rank === 2 ? "⚡" : "•"}
+          {/* Expanding rings */}
+          <div className="absolute inset-0 rounded-2xl pointer-events-none"
+            style={{ border: `2px solid ${accentColor}`, animation: step >= 2 ? "ringExpand 1.8s 0.2s ease-out infinite" : "none" }} />
+          <div className="absolute inset-0 rounded-2xl pointer-events-none"
+            style={{ border: `2px solid ${accentColor}`, animation: step >= 2 ? "ringExpand 1.8s 0.9s ease-out infinite" : "none" }} />
+          {/* Rank badge */}
+          <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-xs z-20"
+            style={{ background: "#0a0620", border: `2px solid ${accentColor}` }}>
+            {rank === 1 ? "🔥" : rank === 2 ? "⚡" : "✦"}
           </div>
         </div>
 
-        <div>
-          <h3 className="text-2xl font-black text-white leading-tight">{item.lead.name}</h3>
-          <div className="flex items-center gap-3 mt-1">
+        {/* Name sweeps in */}
+        <div className="overflow-hidden flex-1">
+          <h3 className="text-3xl font-black text-white leading-tight"
+            style={{ animation: step >= 2 ? "scanRight 0.7s ease both" : "none", opacity: step >= 2 ? 1 : 0 }}>
+            {item.lead.name}
+          </h3>
+          <div className="flex items-center gap-3 mt-1"
+            style={{ opacity: step >= 3 ? 1 : 0, animation: step >= 3 ? "fadeSlideUp 0.4s ease both" : "none" }}>
             <span className="text-white/30 text-xs">{item.lead.phone}</span>
             <span className="text-white/15">·</span>
             <span className="text-white/30 text-xs">{item.lead.email.split("@")[0]}@…</span>
@@ -719,90 +855,136 @@ function LeadSlide({ item, rank, total }: { item: QueueItem; rank: number; total
         </div>
       </div>
 
-      {/* Signal timeline */}
-      <div style={{ animation: "fadeSlideUp 0.4s 0.2s ease both" }}>
-        <SignalTimeline signals={item.signals} />
+      {/* Signals — slide in from right one by one */}
+      <div className="flex flex-col gap-1.5">
+        {(item.signals ?? []).slice(0, 3).map((sig, i) => (
+          <div key={i} className="flex items-center gap-2"
+            style={{
+              opacity: step >= 4 ? 1 : 0,
+              animation: step >= 4 ? `slideFromRight 0.45s ${i * 0.14}s ease both` : "none",
+            }}>
+            <div className="w-1.5 h-1.5 rounded-full shrink-0"
+              style={{ background: accentColor, boxShadow: `0 0 6px ${accentColor}80` }} />
+            <div className="h-px flex-1" style={{ background: `linear-gradient(90deg, ${accentColor}50, transparent)` }} />
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize"
+              style={{ background: `${accentColor}18`, color: "#c4b5fd", border: `1px solid ${accentColor}30` }}>
+              {signalIcons[sig.signal_type] || "•"} {sig.signal_type.replace(/_/g, " ")}
+            </span>
+            <span className="text-[9px] text-white/25 font-mono">
+              {new Date(sig.occurred_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+            </span>
+          </div>
+        ))}
       </div>
 
-      {/* Recommended action */}
+      {/* Recommended action — slides up with shimmer */}
       <div className="rounded-xl p-4 relative overflow-hidden"
         style={{
           background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(99,102,241,0.1)",
-          animation: "fadeSlideUp 0.4s 0.35s ease both",
+          border: `1px solid ${accentColor}25`,
+          opacity: step >= 5 ? 1 : 0,
+          animation: step >= 5 ? "slideFromBottom 0.5s ease both" : "none",
         }}>
-        <div className="absolute top-0 left-0 w-0.5 h-full" style={{ background: "linear-gradient(180deg, #818cf8, #c084fc)" }} />
-        <p className="text-[9px] font-bold text-indigo-400/50 tracking-[0.15em] uppercase mb-2">Recommended</p>
-        <p className="text-sm text-white/70 leading-relaxed">{item.recommended_action}</p>
+        <div className="absolute top-0 left-0 w-0.5 h-full" style={{ background: `linear-gradient(180deg, ${accentColor}, #c084fc)` }} />
+        {/* Shimmer on reveal */}
+        {step === 5 && (
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%)", backgroundSize: "200% 100%", animation: "shimmerSweep 0.8s ease both" }} />
+        )}
+        <p className="text-[9px] font-bold tracking-[0.15em] uppercase mb-1.5" style={{ color: `${accentColor}80` }}>Recommended</p>
+        <p className="text-sm text-white/75 leading-relaxed">{item.recommended_action}</p>
       </div>
 
-      {/* Confidence bar */}
-      <div className="flex items-center gap-3" style={{ animation: "fadeSlideUp 0.4s 0.45s ease both" }}>
-        <span className="text-[10px] text-white/20 font-medium">Confidence</span>
-        <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
-          <div className="h-full rounded-full" style={{
-            width: `${Math.round(item.confidence * 100)}%`,
-            background: "linear-gradient(90deg, #818cf8, #c084fc)",
-            transition: "width 1s ease",
-          }} />
+      {/* Confidence bar — fills with glow */}
+      <div className="flex items-center gap-3"
+        style={{ opacity: step >= 6 ? 1 : 0, animation: step >= 6 ? "fadeSlideUp 0.4s ease both" : "none" }}>
+        <span className="text-[10px] text-white/20 font-medium shrink-0">Confidence</span>
+        <div className="flex-1 h-2 rounded-full overflow-hidden relative" style={{ background: "rgba(255,255,255,0.05)" }}>
+          <div className="h-full rounded-full absolute left-0 top-0"
+            style={{
+              width: step >= 6 ? `${Math.round(item.confidence * 100)}%` : "0%",
+              background: `linear-gradient(90deg, #818cf8, ${accentColor})`,
+              transition: "width 1.4s cubic-bezier(0.25,0.46,0.45,0.94)",
+              boxShadow: `4px 0 16px ${accentColor}80`,
+            }} />
         </div>
-        <span className="text-[10px] text-indigo-300/60 font-bold">{Math.round(item.confidence * 100)}%</span>
+        <span className="text-sm font-black shrink-0" style={{ color: accentColor }}>{Math.round(item.confidence * 100)}%</span>
       </div>
     </div>
   )
 }
 
 function CTASlide({ count, onComplete }: { count: number; onComplete: () => void }) {
-  const [show, setShow] = useState(false)
-  useEffect(() => { const t = setTimeout(() => setShow(true), 200); return () => clearTimeout(t) }, [])
+  const [phase, setPhase] = useState(0)
+  useEffect(() => {
+    const ts = [
+      setTimeout(() => setPhase(1), 100),
+      setTimeout(() => setPhase(2), 500),
+      setTimeout(() => setPhase(3), 900),
+    ]
+    return () => ts.forEach(clearTimeout)
+  }, [])
 
   return (
-    <div className="text-center flex flex-col items-center gap-6 max-w-md">
-      {/* Animated sparkle */}
-      <div className="relative" style={{ animation: "scaleIn 0.5s ease both" }}>
-        <div className="text-5xl font-black" style={{
-          background: "linear-gradient(135deg,#818cf8,#c084fc,#818cf8)",
-          backgroundSize: "200% auto",
-          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
-          animation: "gradientShift 3s ease infinite",
-          filter: "drop-shadow(0 0 20px rgba(129,140,248,0.3))",
-        }}>✦</div>
-        {/* Radiating rings */}
-        {[0, 1, 2].map(i => (
-          <div key={i} className="absolute inset-0 rounded-full border"
+    <div className="text-center flex flex-col items-center gap-6 max-w-md relative">
+      {/* Background burst rings */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        {[0, 1, 2, 3].map(i => (
+          <div key={i} className="absolute rounded-full border"
             style={{
-              borderColor: `rgba(129,140,248,${0.1 - i * 0.03})`,
-              transform: `scale(${1.5 + i * 0.8})`,
-              animation: `pulseGlow ${2 + i * 0.5}s ${i * 0.3}s ease infinite`,
+              width: 80 + i * 80, height: 80 + i * 80,
+              borderColor: `rgba(129,140,248,${0.06 - i * 0.01})`,
+              animation: `pulseGlow ${2.5 + i * 0.6}s ${i * 0.4}s ease-in-out infinite`,
             }} />
         ))}
       </div>
 
-      <div style={{ opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(12px)", transition: "all 0.6s 0.1s ease" }}>
-        <h2 className="text-3xl font-black text-white mb-2">
-          <AnimatedNumber value={count} duration={800} /> decision{count !== 1 ? "s" : ""} waiting
-        </h2>
-        <p className="text-white/35 text-sm">Your queue is ranked and ready.</p>
+      {/* Central sparkle — explodes in */}
+      <div className="relative z-10" style={{ animation: phase >= 1 ? "glowBurst 0.8s ease both" : "none", opacity: phase >= 1 ? 1 : 0 }}>
+        <div className="text-7xl font-black relative"
+          style={{
+            background: "linear-gradient(135deg,#818cf8,#c084fc,#60a5fa,#818cf8)",
+            backgroundSize: "300% auto",
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
+            animation: "gradientShift 3s ease infinite",
+            filter: "drop-shadow(0 0 30px rgba(129,140,248,0.5))",
+          }}>✦</div>
+        {/* Orbiting dot around the sparkle */}
+        <div className="absolute w-2 h-2 rounded-full"
+          style={{ background: "#c084fc", boxShadow: "0 0 8px rgba(192,132,252,0.8)", animation: "orbit 2s linear infinite", transformOrigin: "40px 40px", top: -4, left: "calc(50% - 4px)" }} />
       </div>
 
+      {/* Count + headline */}
+      <div className="relative z-10"
+        style={{ opacity: phase >= 2 ? 1 : 0, animation: phase >= 2 ? "slideFromBottom 0.6s ease both" : "none" }}>
+        <div className="text-6xl font-black text-white mb-1"
+          style={{ textShadow: "0 0 40px rgba(99,102,241,0.4)" }}>
+          <AnimatedNumber value={count} duration={700} />
+        </div>
+        <h2 className="text-xl font-black mb-2"
+          style={{
+            background: "linear-gradient(90deg,#fff,#c4b5fd)",
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
+          }}>
+          decision{count !== 1 ? "s" : ""} ranked &amp; ready
+        </h2>
+        <p className="text-white/35 text-sm">Your queue is approval-ready.</p>
+      </div>
+
+      {/* CTA button */}
       <button onClick={onComplete}
-        className="text-white font-black text-sm px-8 py-4 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_32px_rgba(99,102,241,0.5)] relative overflow-hidden group"
+        className="relative z-10 text-white font-black text-sm px-10 py-4 rounded-xl transition-all duration-300 hover:-translate-y-1 group overflow-hidden"
         style={{
           background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
-          boxShadow: "0 4px 24px rgba(99,102,241,0.4)",
-          opacity: show ? 1 : 0,
-          transform: show ? "translateY(0)" : "translateY(8px)",
-          transition: "all 0.6s 0.3s ease",
+          boxShadow: "0 4px 30px rgba(99,102,241,0.5)",
+          opacity: phase >= 3 ? 1 : 0,
+          animation: phase >= 3 ? "slideFromBottom 0.5s ease both, glowPulse 2.5s 1s ease infinite" : "none",
         }}>
-        {/* Shimmer effect */}
-        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
-          style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)", backgroundSize: "200% 100%", animation: "shimmer 1.5s ease infinite" }} />
+        {/* Shimmer */}
+        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+          style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)", backgroundSize: "200% 100%", animation: "shimmerSweep 1.5s ease infinite" }} />
         <span className="relative">Open my queue →</span>
       </button>
-
-      <p className="text-white/15 text-[10px] font-medium" style={{ opacity: show ? 1 : 0, transition: "opacity 0.5s 0.6s ease" }}>
-        Press Space to pause · Arrow keys to navigate · Esc to skip
-      </p>
     </div>
   )
 }

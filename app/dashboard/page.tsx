@@ -8,8 +8,10 @@ import { VideoPlayer } from "@/components/video-player"
 import { ActionCard } from "@/components/action-card"
 import { TranscriptView } from "@/components/transcript-view"
 import { AskBar } from "@/components/ask-bar"
+import { ConfidenceTuner } from "@/components/confidence-tuner"
 import { useAudioBrief } from "@/components/audio-brief"
 import { MOCK_OVERNIGHT_SUMMARY, MOCK_QUEUE } from "@/lib/mock-data"
+import { type ConfidenceWeights, calculateConfidence, loadWeights } from "@/lib/confidence"
 import type { ActionTaken, QueueItem } from "@/lib/types"
 
 type ViewState = "loading" | "video" | "transcript" | "queue"
@@ -23,7 +25,14 @@ export default function DashboardPage() {
   const [reordered, setReordered] = useState(false)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
+  const [weights, setWeights] = useState<ConfidenceWeights>(() => loadWeights())
+  const [showTuner, setShowTuner] = useState(false)
   const hasFetched = useRef(false)
+
+  const adjustedQueue = queue.map((item) => ({
+    ...item,
+    confidence: calculateConfidence(item, weights).total,
+  }))
 
   const { play } = useAudioBrief(agentName, MOCK_OVERNIGHT_SUMMARY, queue[0]?.lead.name ?? "")
 
@@ -114,7 +123,7 @@ export default function DashboardPage() {
 
   function handleDragEnd() { setDragIdx(null); setDragOverIdx(null) }
 
-  function handleLogout() { sessionStorage.clear(); router.push("/login") }
+  function handleLogout() { sessionStorage.clear(); router.push("/") }
 
   const doneCount = MOCK_QUEUE.length - queue.length
 
@@ -125,7 +134,7 @@ export default function DashboardPage() {
       <div className="flex flex-1 gap-6 p-6 max-w-[1440px] mx-auto w-full" style={{ minHeight: "calc(100vh - 60px)" }}>
         {/* LEFT — agent dashboard */}
         <div className="w-[380px] shrink-0 flex flex-col">
-          <AgentsPanel agentName={agentName} summary={MOCK_OVERNIGHT_SUMMARY} queue={queue} />
+          <AgentsPanel agentName={agentName} summary={MOCK_OVERNIGHT_SUMMARY} queue={adjustedQueue} />
         </div>
 
         {/* RIGHT — loading → video → transcript → queue */}
@@ -183,6 +192,11 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button onClick={() => setShowTuner(true)}
+                    className="text-xs font-semibold px-3.5 py-2 rounded-xl transition-all duration-200 hover:-translate-y-px glass-card"
+                    style={{ color: "#6366f1" }}>
+                    ⚙ Tune Model
+                  </button>
                   <button onClick={() => play()}
                     className="text-xs font-semibold px-3.5 py-2 rounded-xl transition-all duration-200 hover:-translate-y-px glass-card"
                     style={{ color: "#6366f1" }}>
@@ -207,7 +221,7 @@ export default function DashboardPage() {
                   <p className="text-[10px] text-gray-400/70 font-medium -mb-2">
                     Drag cards to reprioritize · changes saved automatically
                   </p>
-                  {queue.map((item, index) => (
+                  {adjustedQueue.map((item, index) => (
                     <ActionCard
                       key={item.id}
                       item={item}
@@ -218,6 +232,7 @@ export default function DashboardPage() {
                       onDragOver={(e) => handleDragOver(e, index)}
                       onDrop={() => handleDrop(index)}
                       onDragEnd={handleDragEnd}
+                      weights={weights}
                     />
                   ))}
                 </>
@@ -234,7 +249,16 @@ export default function DashboardPage() {
         Powered by Lofty AOS
       </div>
 
-      <AskBar queue={queue} agentName={agentName} />
+      <AskBar queue={adjustedQueue} agentName={agentName} />
+
+      {showTuner && (
+        <ConfidenceTuner
+          weights={weights}
+          queue={adjustedQueue}
+          onWeightsChange={setWeights}
+          onClose={() => setShowTuner(false)}
+        />
+      )}
     </div>
   )
 }

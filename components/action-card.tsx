@@ -4,6 +4,7 @@ import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { WhyDrawer } from "./why-drawer"
 import type { QueueItem, ActionTaken } from "@/lib/types"
+import type { ConfidenceWeights } from "@/lib/confidence"
 
 interface ActionCardProps {
   item: QueueItem
@@ -14,6 +15,7 @@ interface ActionCardProps {
   onDragOver?: (e: React.DragEvent) => void
   onDrop?: (e: React.DragEvent) => void
   onDragEnd?: (e: React.DragEvent) => void
+  weights?: ConfidenceWeights
 }
 
 const TEAM = ["Mike Torres", "Ashley Rivera", "Your manager"]
@@ -37,7 +39,7 @@ function emailDraft(item: QueueItem): string {
 
 type Mode = "idle" | "executing" | "approved" | "edit" | "delegate" | "snooze" | "done"
 
-export function ActionCard({ item, index, onAction, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: ActionCardProps) {
+export function ActionCard({ item, index, onAction, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd, weights }: ActionCardProps) {
   const [whyOpen, setWhyOpen] = useState(false)
   const [mode, setMode] = useState<Mode>("idle")
   const [editText, setEditText] = useState(item.recommended_action)
@@ -312,7 +314,7 @@ export function ActionCard({ item, index, onAction, isDragOver, onDragStart, onD
         </div>
       </AnimatePresence>
 
-      <WhyDrawer item={item} open={whyOpen} onClose={() => setWhyOpen(false)} />
+      <WhyDrawer item={item} open={whyOpen} onClose={() => setWhyOpen(false)} weights={weights} />
     </>
   )
 }
