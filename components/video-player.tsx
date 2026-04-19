@@ -10,7 +10,7 @@ interface VideoPlayerProps {
   onComplete: () => void
 }
 
-const SLIDE_DURATION = 6000
+const SLIDE_DURATION = 4000
 const TRANSITION_MS = 500
 
 const signalIcons: Record<string, string> = {
@@ -367,7 +367,7 @@ export function VideoPlayer({ agentName, summary, queue, onComplete }: VideoPlay
     if (!text) return
 
     const utter = new SpeechSynthesisUtterance(text)
-    utter.rate = 1.05
+    utter.rate = 1.55
     utter.pitch = 1.0
     utter.volume = muted ? 0 : 1
 
@@ -389,7 +389,7 @@ export function VideoPlayer({ agentName, summary, queue, onComplete }: VideoPlay
     window.speechSynthesis.speak(utter)
 
     // Safety: advance after 20s max in case onend never fires (browser bug)
-    safetyRef.current = setTimeout(() => { if (!advancedRef.current) advance() }, 20000)
+    safetyRef.current = setTimeout(() => { if (!advancedRef.current) advance() }, 13000)
 
     return () => {
       window.speechSynthesis.cancel()
