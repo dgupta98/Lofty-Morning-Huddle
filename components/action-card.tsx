@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { WhyDrawer } from "./why-drawer"
 import type { QueueItem, ActionTaken } from "@/lib/types"
 
@@ -11,154 +11,281 @@ interface ActionCardProps {
   onAction: (itemId: string, action: ActionTaken) => Promise<void>
 }
 
+const TEAM = ["Mike Torres", "Ashley Rivera", "Your manager"]
+
+const SNOOZE_OPTS = [
+  { label: "30 min", value: 30 },
+  { label: "2 hours", value: 120 },
+  { label: "Tomorrow 8 AM", value: -1 },
+]
+
+function emailDraft(item: QueueItem): string {
+  const firstName = item.lead.name.split(" ")[0]
+  if (item.lead.opportunity_type === "High Interest") {
+    return `Hi ${firstName},\n\nI noticed you've been checking out the listing — great taste! I'd love to set up a private tour.\n\nAre you free Saturday morning? I have a slot at 10:00 AM that would work perfectly.\n\nLooking forward to connecting!\nJames`
+  }
+  if (item.lead.opportunity_type === "Seller Intent") {
+    return `Hi ${firstName},\n\nI've been watching the market in your area closely and think now is a great time.\n\nI'd love to share a complimentary CMA showing what homes like yours are selling for. Would a quick 15-minute call work this week?\n\nBest, James`
+  }
+  return `Hi ${firstName},\n\nJust following up to make sure we're on track. Please let me know if you need anything — I want to make sure we don't miss any important deadlines.\n\nBest, James`
+}
+
+type Mode = "idle" | "executing" | "approved" | "edit" | "delegate" | "snooze" | "done"
+
 export function ActionCard({ item, index, onAction }: ActionCardProps) {
   const [whyOpen, setWhyOpen] = useState(false)
-  const [loading, setLoading] = useState<ActionTaken | null>(null)
-  const [done, setDone] = useState(false)
+  const [mode, setMode] = useState<Mode>("idle")
+  const [editText, setEditText] = useState(item.recommended_action)
+  const [delegateTo, setDelegateTo] = useState<string | null>(null)
+  const [snoozedTo, setSnoozedTo] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
-  const isDimmed = index > 0
+  const isDimmed = index > 0 && mode === "idle"
   const scorePercent = Math.round(item.priority_score * 100)
 
-  async function handleAction(action: ActionTaken) {
-    setLoading(action)
+  async function executeAction(action: ActionTaken) {
+    setMode("executing")
+    await new Promise((r) => setTimeout(r, 1400))
     await onAction(item.id, action)
-    setLoading(null)
-    if (action === "approve") setDone(true)
+    if (action === "approve") setMode("approved")
+  }
+
+  async function handleDelegate(name: string) {
+    setDelegateTo(name)
+    await new Promise((r) => setTimeout(r, 800))
+    await onAction(item.id, "delegate")
+    setMode("done")
+  }
+
+  async function handleSnooze(opt: { label: string; value: number }) {
+    setSnoozedTo(opt.label)
+    await new Promise((r) => setTimeout(r, 700))
+    await onAction(item.id, "snooze")
+    setMode("done")
+  }
+
+  function copyEmail() {
+    navigator.clipboard.writeText(emailDraft(item)).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
     <>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: isDimmed ? 0.6 : 1, y: 0 }}
-        transition={{ duration: 0.5, delay: index * 0.1 }}
-        className="relative rounded-2xl overflow-hidden"
-        style={{
-          background: "rgba(255,255,255,0.82)",
-          backdropFilter: "blur(16px)",
-          WebkitBackdropFilter: "blur(16px)",
-          border: "1px solid rgba(99,102,241,0.14)",
-          boxShadow: "0 4px 20px rgba(99,102,241,0.07), 0 1px 4px rgba(0,0,0,0.04)",
-        }}
-        whileHover={{ y: -2, boxShadow: "0 10px 36px rgba(99,102,241,0.13)" }}
-      >
-        {/* Top gradient stripe */}
-        <div
-          className="absolute top-0 left-0 right-0 h-0.5"
+      <AnimatePresence>
+        <motion.div
+          key={item.id}
+          initial={{ opacity: 0, y: 24 }}
+          animate={{
+            opacity: mode === "done" ? 0 : isDimmed ? 0.55 : 1,
+            y: 0,
+            scale: mode === "done" ? 0.96 : 1,
+          }}
+          exit={{ opacity: 0, y: -16, scale: 0.96 }}
+          transition={{ duration: 0.45, delay: index * 0.08 }}
+          className="relative rounded-2xl overflow-hidden"
           style={{
-            background: "linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa)",
+            background: "rgba(255,255,255,0.88)",
+            backdropFilter: "blur(16px)",
+            border: mode === "approved" ? "1.5px solid #22c55e" : "1px solid rgba(99,102,241,0.14)",
+            boxShadow: "0 4px 20px rgba(99,102,241,0.07), 0 1px 4px rgba(0,0,0,0.04)",
+            pointerEvents: mode === "done" ? "none" : "auto",
+          }}
+          whileHover={mode === "idle" ? { y: -2, boxShadow: "0 10px 36px rgba(99,102,241,0.13)" } : {}}
+        >
+          <div className="absolute top-0 left-0 right-0 h-0.5" style={{
+            background: "linear-gradient(90deg,#6366f1,#8b5cf6,#a78bfa)",
             backgroundSize: "200% auto",
             animation: "gradientShift 4s ease infinite",
-          }}
-        />
+          }} />
 
-        <div className="p-5 pt-6">
-          <div className="flex items-center justify-between mb-2.5">
-            <span className="text-[10px] font-bold text-indigo-300 tracking-widest uppercase">
-              #{item.rank} · Priority
-            </span>
-            <div className="flex items-center gap-2">
-              <span
-                className="text-[10px] font-bold px-2.5 py-1 rounded-xl"
-                style={{
-                  background: "rgba(99,102,241,0.08)",
-                  border: "1px solid rgba(99,102,241,0.15)",
-                  color: "#6366f1",
-                }}
-              >
-                {item.lead.opportunity_type}
-              </span>
-              <span
-                className="text-[11px] font-extrabold px-2.5 py-1 rounded-xl text-white"
-                style={{
-                  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                  boxShadow: "0 2px 8px rgba(99,102,241,0.3)",
-                }}
-              >
-                {scorePercent}
-              </span>
+          <div className="p-5 pt-6">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-base font-black flex-shrink-0"
+                  style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
+                  {item.lead.name[0]}
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-indigo-300 tracking-widest uppercase">#{item.rank} · Priority</div>
+                  <h2 className="text-base font-black text-indigo-900 leading-tight">{item.lead.name}</h2>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold px-2 py-1 rounded-lg hidden sm:block"
+                  style={{ background: "rgba(99,102,241,0.07)", border: "1px solid rgba(99,102,241,0.14)", color: "#6366f1" }}>
+                  {item.lead.opportunity_type}
+                </span>
+                <span className="text-[11px] font-extrabold px-2.5 py-1 rounded-xl text-white"
+                  style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 2px 8px rgba(99,102,241,0.3)" }}>
+                  {scorePercent}
+                </span>
+              </div>
             </div>
+
+            {/* Contact row */}
+            <div className="flex gap-4 mb-3 flex-wrap">
+              <a href={`tel:${item.lead.phone}`} className="text-xs font-semibold text-indigo-400 hover:text-indigo-600 transition-colors">
+                📞 {item.lead.phone}
+              </a>
+              <a href={`mailto:${item.lead.email}`} className="text-xs font-semibold text-indigo-400 hover:text-indigo-600 transition-colors">
+                ✉ {item.lead.email}
+              </a>
+            </div>
+
+            {item.explanation && (
+              <p className="text-sm text-gray-600 leading-relaxed mb-3 line-clamp-2">{item.explanation}</p>
+            )}
+
+            {(mode === "idle" || mode === "executing") && (
+              <div className="mb-4">
+                <p className="text-[9px] font-extrabold text-purple-400 tracking-widest uppercase mb-1.5">Recommended action</p>
+                <div className="text-sm font-semibold text-indigo-900 p-3 rounded-xl leading-snug"
+                  style={{ background: "linear-gradient(90deg,rgba(99,102,241,0.06),rgba(139,92,246,0.04))", borderLeft: "3px solid #6366f1" }}>
+                  {item.recommended_action}
+                </div>
+              </div>
+            )}
+
+            {/* EXECUTING */}
+            {mode === "executing" && (
+              <div className="flex items-center gap-2 text-sm text-indigo-500 font-semibold py-2">
+                <span className="w-4 h-4 rounded-full border-2 border-indigo-200 border-t-indigo-500 inline-block" style={{ animation: "spin 0.7s linear infinite" }} />
+                Lofty is executing…
+              </div>
+            )}
+
+            {/* APPROVED */}
+            {mode === "approved" && (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2 text-green-600 text-sm font-bold">
+                  <span>✓</span> Action executed — here&apos;s what Lofty did:
+                </div>
+                <div className="rounded-xl p-3 text-xs flex flex-col gap-1.5"
+                  style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                  <div className="text-green-700 font-semibold">📧 Email draft queued for {item.lead.name}</div>
+                  <div className="text-green-600/60 font-mono text-[11px] italic">{emailDraft(item).split("\n")[2]?.trim()}</div>
+                </div>
+                <div className="rounded-xl p-3 text-xs"
+                  style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                  <div className="text-green-700 font-semibold">📋 Smart Plan step marked complete</div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={copyEmail} className="text-xs font-semibold px-3 py-2 rounded-xl transition-all"
+                    style={{ background: copied ? "#22c55e" : "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)", color: copied ? "white" : "#6366f1" }}>
+                    {copied ? "✓ Copied!" : "Copy email"}
+                  </button>
+                  <button onClick={() => setMode("done")} className="text-xs font-semibold px-3 py-2 rounded-xl text-gray-400 hover:text-gray-600 transition-colors">
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* EDIT */}
+            {mode === "edit" && (
+              <div className="flex flex-col gap-3">
+                <p className="text-[9px] font-extrabold text-purple-400 tracking-widest uppercase">Customize action</p>
+                <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={3}
+                  className="w-full text-sm text-indigo-900 p-3 rounded-xl resize-none outline-none"
+                  style={{ background: "rgba(99,102,241,0.04)", border: "1.5px solid rgba(99,102,241,0.25)" }} />
+                <div className="flex gap-2">
+                  <button onClick={() => executeAction("approve")} className="text-white text-xs font-bold px-4 py-2.5 rounded-xl"
+                    style={{ background: "linear-gradient(90deg,#6366f1,#8b5cf6)" }}>
+                    Save & Execute →
+                  </button>
+                  <button onClick={() => setMode("idle")} className="text-xs font-semibold px-3 py-2.5 rounded-xl text-gray-400 hover:text-gray-600 transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* DELEGATE */}
+            {mode === "delegate" && (
+              <div className="flex flex-col gap-3">
+                <p className="text-[9px] font-extrabold text-purple-400 tracking-widest uppercase">Delegate to</p>
+                <div className="flex flex-col gap-2">
+                  {TEAM.map((name) => (
+                    <button key={name} onClick={() => handleDelegate(name)} disabled={delegateTo !== null}
+                      className="flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01] disabled:opacity-60"
+                      style={{
+                        background: delegateTo === name ? "rgba(99,102,241,0.08)" : "rgba(255,255,255,0.8)",
+                        border: `1px solid ${delegateTo === name ? "#6366f1" : "rgba(99,102,241,0.15)"}`,
+                      }}>
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-black flex-shrink-0"
+                        style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
+                        {name[0]}
+                      </div>
+                      <span className="text-sm font-semibold text-indigo-800">{name}</span>
+                      {delegateTo === name && <span className="ml-auto text-indigo-400 text-xs font-semibold">Delegating…</span>}
+                    </button>
+                  ))}
+                </div>
+                {!delegateTo && (
+                  <button onClick={() => setMode("idle")} className="text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors">Cancel</button>
+                )}
+              </div>
+            )}
+
+            {/* SNOOZE */}
+            {mode === "snooze" && (
+              <div className="flex flex-col gap-3">
+                <p className="text-[9px] font-extrabold text-purple-400 tracking-widest uppercase">Snooze until</p>
+                <div className="flex gap-2 flex-wrap">
+                  {SNOOZE_OPTS.map((opt) => (
+                    <button key={opt.label} onClick={() => handleSnooze(opt)} disabled={snoozedTo !== null}
+                      className="text-xs font-bold px-4 py-2.5 rounded-xl transition-all hover:-translate-y-px disabled:opacity-60"
+                      style={{
+                        background: snoozedTo === opt.label ? "rgba(99,102,241,0.12)" : "rgba(255,255,255,0.9)",
+                        border: `1.5px solid ${snoozedTo === opt.label ? "#6366f1" : "rgba(99,102,241,0.2)"}`,
+                        color: "#6366f1",
+                      }}>
+                      {snoozedTo === opt.label ? "⟳ Snoozing…" : opt.label}
+                    </button>
+                  ))}
+                </div>
+                {snoozedTo && <div className="text-xs text-indigo-400 font-medium">Snoozed until {snoozedTo} ✓</div>}
+                {!snoozedTo && (
+                  <button onClick={() => setMode("idle")} className="text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors">Cancel</button>
+                )}
+              </div>
+            )}
+
+            {/* IDLE — action buttons */}
+            {mode === "idle" && (
+              <>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <button onClick={() => executeAction("approve")}
+                    className="text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all hover:-translate-y-px"
+                    style={{ background: "linear-gradient(90deg,#6366f1,#8b5cf6)", boxShadow: "0 3px 12px rgba(99,102,241,0.35)", animation: "pulseGlow 3s ease infinite" }}>
+                    ✓ Approve & Execute
+                  </button>
+                  {(["edit", "delegate", "snooze"] as const).map((action) => (
+                    <button key={action} onClick={() => setMode(action)}
+                      className="text-xs font-semibold px-3.5 py-2.5 rounded-xl transition-all hover:-translate-y-px"
+                      style={{ background: "rgba(255,255,255,0.9)", border: "1px solid rgba(99,102,241,0.2)", color: "#6366f1" }}>
+                      {action === "edit" ? "✎ Edit" : action === "delegate" ? "→ Delegate" : "⟳ Snooze"}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between pt-3" style={{ borderTop: "1px solid rgba(99,102,241,0.08)" }}>
+                  <button onClick={() => setWhyOpen(true)}
+                    className="text-xs font-semibold text-indigo-300 hover:text-indigo-500 transition-colors">
+                    ? Why this matters →
+                  </button>
+                  <span className="text-[10px] text-purple-300 font-medium">Confidence {Math.round(item.confidence * 100)}%</span>
+                </div>
+              </>
+            )}
           </div>
-
-          <h2 className="text-lg font-black text-indigo-900 tracking-tight mb-2">
-            {item.lead.name}
-          </h2>
-
-          {item.explanation && (
-            <p className="text-sm text-gray-600 leading-relaxed mb-3 line-clamp-3">
-              {item.explanation}
-            </p>
-          )}
-
-          <div className="mb-4">
-            <p className="text-[9px] font-extrabold text-purple-500 tracking-widest uppercase mb-1.5">
-              Recommended action
-            </p>
-            <div
-              className="text-sm font-semibold text-indigo-900 p-3 rounded-xl leading-snug"
-              style={{
-                background: "linear-gradient(90deg, rgba(99,102,241,0.06), rgba(139,92,246,0.04))",
-                borderLeft: "3px solid #6366f1",
-              }}
-            >
-              {item.recommended_action}
-            </div>
-          </div>
-
-          {done ? (
-            <div className="flex items-center gap-2 text-green-600 text-sm font-bold py-2">
-              <span>✓</span> Action approved — Lofty is executing
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2 mb-3">
-              <button
-                onClick={() => handleAction("approve")}
-                disabled={loading !== null}
-                className="text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all hover:-translate-y-px disabled:opacity-50"
-                style={{
-                  background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
-                  boxShadow: "0 3px 12px rgba(99,102,241,0.35)",
-                  animation: "pulseGlow 3s ease infinite",
-                }}
-              >
-                {loading === "approve" ? "..." : "✓ Approve & Execute"}
-              </button>
-              {(["edit", "delegate", "snooze"] as ActionTaken[]).map((action) => (
-                <button
-                  key={action}
-                  onClick={() => handleAction(action)}
-                  disabled={loading !== null}
-                  className="text-xs font-semibold px-3.5 py-2.5 rounded-xl transition-all hover:-translate-y-px disabled:opacity-50"
-                  style={{
-                    background: "rgba(255,255,255,0.9)",
-                    border: "1px solid rgba(99,102,241,0.2)",
-                    color: "#6366f1",
-                  }}
-                >
-                  {action === "edit" ? "✎ Edit" : action === "delegate" ? "→ Delegate" : "⟳ Snooze"}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div
-            className="flex items-center justify-between pt-3"
-            style={{ borderTop: "1px solid rgba(99,102,241,0.08)" }}
-          >
-            <button
-              onClick={() => setWhyOpen(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-indigo-300 hover:text-indigo-500 transition-colors"
-            >
-              ? Why this matters →
-            </button>
-            <span className="text-[10px] text-purple-300 font-medium">
-              Confidence {Math.round(item.confidence * 100)}%
-            </span>
-          </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      </AnimatePresence>
 
       <WhyDrawer item={item} open={whyOpen} onClose={() => setWhyOpen(false)} />
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </>
   )
 }
