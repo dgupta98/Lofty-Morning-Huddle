@@ -4,6 +4,8 @@ export type OpportunityType =
   | "Seller Intent"
   | "Back-on-Market"
   | "Deadline"
+  | "Buyer Match"
+  | "Showing"
 
 export type ActionTaken = "approve" | "edit" | "delegate" | "snooze"
 

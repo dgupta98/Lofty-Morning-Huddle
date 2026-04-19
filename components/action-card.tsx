@@ -9,6 +9,11 @@ interface ActionCardProps {
   item: QueueItem
   index: number
   onAction: (itemId: string, action: ActionTaken) => Promise<void>
+  isDragOver?: boolean
+  onDragStart?: (e: React.DragEvent) => void
+  onDragOver?: (e: React.DragEvent) => void
+  onDrop?: (e: React.DragEvent) => void
+  onDragEnd?: (e: React.DragEvent) => void
 }
 
 const TEAM = ["Mike Torres", "Ashley Rivera", "Your manager"]
@@ -32,7 +37,7 @@ function emailDraft(item: QueueItem): string {
 
 type Mode = "idle" | "executing" | "approved" | "edit" | "delegate" | "snooze" | "done"
 
-export function ActionCard({ item, index, onAction }: ActionCardProps) {
+export function ActionCard({ item, index, onAction, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: ActionCardProps) {
   const [whyOpen, setWhyOpen] = useState(false)
   const [mode, setMode] = useState<Mode>("idle")
   const [editText, setEditText] = useState(item.recommended_action)
@@ -73,6 +78,14 @@ export function ActionCard({ item, index, onAction }: ActionCardProps) {
   return (
     <>
       <AnimatePresence>
+        <div
+          draggable={mode === "idle"}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+          onDragEnd={onDragEnd}
+          style={{ cursor: mode === "idle" ? "grab" : "default" }}
+        >
         <motion.div
           key={item.id}
           initial={{ opacity: 0, y: 24 }}
@@ -87,8 +100,8 @@ export function ActionCard({ item, index, onAction }: ActionCardProps) {
           style={{
             background: "rgba(255,255,255,0.88)",
             backdropFilter: "blur(16px)",
-            border: mode === "approved" ? "1.5px solid #22c55e" : "1px solid rgba(99,102,241,0.14)",
-            boxShadow: "0 4px 20px rgba(99,102,241,0.07), 0 1px 4px rgba(0,0,0,0.04)",
+            border: isDragOver ? "2px solid #6366f1" : mode === "approved" ? "1.5px solid #22c55e" : "1px solid rgba(99,102,241,0.14)",
+            boxShadow: isDragOver ? "0 0 0 4px rgba(99,102,241,0.12), 0 8px 30px rgba(99,102,241,0.15)" : "0 4px 20px rgba(99,102,241,0.07), 0 1px 4px rgba(0,0,0,0.04)",
             pointerEvents: mode === "done" ? "none" : "auto",
           }}
           whileHover={mode === "idle" ? { y: -2, boxShadow: "0 10px 36px rgba(99,102,241,0.13)" } : {}}
@@ -98,6 +111,12 @@ export function ActionCard({ item, index, onAction }: ActionCardProps) {
             backgroundSize: "200% auto",
             animation: "gradientShift 4s ease infinite",
           }} />
+          {/* Drag handle */}
+          {mode === "idle" && (
+            <div className="absolute top-3 right-3 text-indigo-200 text-sm select-none" title="Drag to reorder">
+              ⠿
+            </div>
+          )}
 
           <div className="p-5 pt-6">
             {/* Header */}
@@ -281,6 +300,7 @@ export function ActionCard({ item, index, onAction }: ActionCardProps) {
             )}
           </div>
         </motion.div>
+        </div>
       </AnimatePresence>
 
       <WhyDrawer item={item} open={whyOpen} onClose={() => setWhyOpen(false)} />

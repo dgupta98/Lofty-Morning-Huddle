@@ -50,7 +50,8 @@ export function VideoBrief({ agentName, summary, queue, onClose }: VideoBriefPro
     return () => clearInterval(tick)
   }, [slide, advance])
 
-  const s = slides[slide]
+  const s = slides[Math.min(slide, slides.length - 1)]
+  if (!s) return null
 
   return (
     <div

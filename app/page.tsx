@@ -80,6 +80,11 @@ export default function LandingPage() {
       sessionStorage.setItem("lofty_agent_id", userId)
       sessionStorage.setItem("lofty_agent_name", USERS.find((u) => u.id === userId)?.name.split(" ")[0] ?? "")
     }
+    // window global — the only mechanism that survives Next.js code-splitting
+    console.log("[LOFTY] landing: setting __lofty_play_video = true")
+    ;(window as any).__lofty_play_video = true
+    sessionStorage.setItem("lofty_play_video", "1")
+    console.log("[LOFTY] landing: pushing to /dashboard")
     router.push("/dashboard")
   }
 
