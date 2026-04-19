@@ -114,7 +114,7 @@ export default function DashboardPage() {
 
   function handleDragEnd() { setDragIdx(null); setDragOverIdx(null) }
 
-  function handleLogout() { sessionStorage.clear(); router.push("/") }
+  function handleLogout() { sessionStorage.clear(); router.push("/login") }
 
   const doneCount = MOCK_QUEUE.length - queue.length
 
@@ -234,7 +234,7 @@ export default function DashboardPage() {
         Powered by Lofty AOS
       </div>
 
-      <AskBar />
+      <AskBar queue={queue} agentName={agentName} />
     </div>
   )
 }

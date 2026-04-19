@@ -253,9 +253,10 @@ export default function LandingPage() {
 
       <footer className="relative z-10 py-6 text-center">
         <p className="text-xs text-gray-400/80 font-medium">
-          Powered by <span className="text-indigo-400 font-semibold">Lofty AOS</span>
+          Built at <span className="text-indigo-400 font-semibold">GlobeHack S1</span>
+          {" · "}Powered by <span className="text-indigo-400 font-semibold">Lofty AOS</span>
           {" · "}<span className="text-indigo-400 font-semibold">InsForge</span>
-          {" · "}<span className="text-indigo-400 font-semibold">Llama 3.3</span>
+          {" · "}<span className="text-indigo-400 font-semibold">Llama 3.3-70B</span>
         </p>
       </footer>
     </div>

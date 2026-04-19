@@ -32,7 +32,7 @@ function buildSpeechScript(s: Slide, agentName: string, summary: OvernightSummar
   if (s.type === "lead") {
     const first = s.item.lead.name.split(" ")[0]
     const sentence = (s.item.explanation ?? "").split(".")[0]
-    return `Priority ${s.rank}: ${first}. Lead score ${s.item.lead.lead_score}. ${sentence}.`
+    return `Priority ${s.rank}: ${first}. ${sentence}.`
   }
   if (s.type === "cta")
     return `That's your briefing. Your queue is ranked and ready. Time to make it happen.`
@@ -51,12 +51,18 @@ function ParticleCanvas({ slideIndex }: { slideIndex: number }) {
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
+    const dpr = window.devicePixelRatio || 1
     const resize = () => {
-      canvas.width = canvas.offsetWidth * 2
-      canvas.height = canvas.offsetHeight * 2
-      ctx.scale(2, 2)
+      // Use parent dimensions as fallback — offsetWidth can be 0 if layout hasn't run
+      const w = canvas.parentElement?.clientWidth || canvas.offsetWidth || 600
+      const h = canvas.parentElement?.clientHeight || canvas.offsetHeight || 400
+      if (w === 0 || h === 0) return
+      canvas.width = w * dpr
+      canvas.height = h * dpr
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     }
-    resize()
+    // Defer one frame so the parent has been laid out
+    requestAnimationFrame(resize)
 
     // Initialize particles
     const w = canvas.offsetWidth
@@ -76,8 +82,10 @@ function ParticleCanvas({ slideIndex }: { slideIndex: number }) {
     const animate = () => {
       if (!running) return
       frameRef.current++
-      const cw = canvas.offsetWidth
-      const ch = canvas.offsetHeight
+      // Use CSS pixel size (ctx is already scaled by dpr via setTransform)
+      const cw = canvas.parentElement?.clientWidth || canvas.offsetWidth || 600
+      const ch = canvas.parentElement?.clientHeight || canvas.offsetHeight || 400
+      if (cw === 0 || ch === 0) { requestAnimationFrame(animate); return }
       ctx.clearRect(0, 0, cw, ch)
 
       // Animated gradient background
@@ -148,8 +156,8 @@ function ParticleCanvas({ slideIndex }: { slideIndex: number }) {
     }
     animate()
 
-    const ro = new ResizeObserver(resize)
-    ro.observe(canvas)
+    const ro = new ResizeObserver(() => requestAnimationFrame(resize))
+    ro.observe(canvas.parentElement || canvas)
     return () => { running = false; ro.disconnect() }
   }, [slideIndex])
 
@@ -291,46 +299,44 @@ export function VideoPlayer({ agentName, summary, queue, onComplete }: VideoPlay
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [muted, setMuted] = useState(false)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const pausedRef = useRef(false)
-  const startTimeRef = useRef(0)
-  const elapsedBeforePauseRef = useRef(0)
+  const safetyRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const advancedRef = useRef(false) // prevents double-advance (speech + safety timer)
+
+  // Reset advance lock on each new slide
+  useEffect(() => { advancedRef.current = false }, [slide])
 
   const advance = useCallback(() => {
+    if (advancedRef.current) return
+    advancedRef.current = true
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null }
+    if (safetyRef.current) { clearTimeout(safetyRef.current); safetyRef.current = null }
     if (slide >= total - 1) { onCompleteRef.current(); return }
     setTransitioning(true)
-    setTimeout(() => { setSlide((s) => s + 1); setProgress(0); setTransitioning(false); elapsedBeforePauseRef.current = 0 }, TRANSITION_MS)
+    setTimeout(() => { setSlide((s) => s + 1); setProgress(0); setTransitioning(false) }, TRANSITION_MS)
   }, [slide, total])
 
   const goToSlide = useCallback((idx: number) => {
     if (idx < 0 || idx >= total || idx === slide) return
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel()
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null }
+    if (safetyRef.current) { clearTimeout(safetyRef.current); safetyRef.current = null }
+    advancedRef.current = true // suppress pending advance from old slide
     setTransitioning(true)
-    elapsedBeforePauseRef.current = 0
     setTimeout(() => { setSlide(idx); setProgress(0); setTransitioning(false) }, 300)
   }, [total, slide])
 
-  // Timer
+  // Progress bar animation — fills over SLIDE_DURATION for visual feedback only
+  // Does NOT trigger advance (speech onend does that)
   useEffect(() => {
     if (paused) return
-    startTimeRef.current = Date.now()
+    const start = Date.now()
     tickRef.current = setInterval(() => {
-      if (pausedRef.current) return
-      const elapsed = elapsedBeforePauseRef.current + (Date.now() - startTimeRef.current)
-      setProgress(Math.min(100, (elapsed / SLIDE_DURATION) * 100))
-      if (elapsed >= SLIDE_DURATION) advance()
+      const elapsed = Date.now() - start
+      // Fill to 95% max — speech onend snaps to 100% and advances
+      setProgress(Math.min(95, (elapsed / SLIDE_DURATION) * 100))
     }, 30)
     return () => { if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null } }
-  }, [slide, advance, paused])
-
-  // Pause/resume
-  useEffect(() => {
-    pausedRef.current = paused
-    if (paused) {
-      elapsedBeforePauseRef.current += Date.now() - startTimeRef.current
-      if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null }
-    }
-  }, [paused])
+  }, [slide, paused])
 
   // Keyboard controls
   useEffect(() => {
@@ -345,28 +351,53 @@ export function VideoPlayer({ agentName, summary, queue, onComplete }: VideoPlay
     return () => window.removeEventListener("keydown", handler)
   }, [slide, goToSlide])
 
-  // Audio narration
+  // Audio narration — drives slide advancement via onend
   useEffect(() => {
     if (typeof window === "undefined" || !window.speechSynthesis) return
     window.speechSynthesis.cancel()
     setIsSpeaking(false)
-    if (muted) return
+
     const currentSlide = slidesRef.current[slide]
     if (!currentSlide) return
     const text = buildSpeechScript(currentSlide, agentNameRef.current, summaryRef.current)
     if (!text) return
+
     const utter = new SpeechSynthesisUtterance(text)
     utter.rate = 1.05
     utter.pitch = 1.0
-    utter.volume = 1
+    utter.volume = muted ? 0 : 1
+
     utter.onstart = () => setIsSpeaking(true)
-    utter.onend = () => setIsSpeaking(false)
+
+    // Speech end → snap progress to 100%, brief pause, then advance
+    utter.onend = () => {
+      setIsSpeaking(false)
+      setProgress(100)
+      if (!paused) setTimeout(() => advance(), 700)
+    }
+
+    // If speech errors, fall back to safety timer
+    utter.onerror = () => {
+      setIsSpeaking(false)
+      if (!paused) setTimeout(() => advance(), 1000)
+    }
+
     window.speechSynthesis.speak(utter)
-    return () => { window.speechSynthesis.cancel(); setIsSpeaking(false) }
-  }, [slide, muted]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Safety: advance after 20s max in case onend never fires (browser bug)
+    safetyRef.current = setTimeout(() => { if (!advancedRef.current) advance() }, 20000)
+
+    return () => {
+      window.speechSynthesis.cancel()
+      setIsSpeaking(false)
+      if (safetyRef.current) { clearTimeout(safetyRef.current); safetyRef.current = null }
+    }
+  }, [slide, muted, paused, advance]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    return () => { if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel() }
+    return () => {
+      if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel()
+    }
   }, [])
 
   const s = slides[Math.min(slide, slides.length - 1)]
@@ -384,6 +415,7 @@ export function VideoPlayer({ agentName, summary, queue, onComplete }: VideoPlay
   return (
     <div className="flex flex-col rounded-2xl overflow-hidden relative select-none" style={{
       height: "100%",
+      background: "linear-gradient(160deg,#0f0a1e 0%,#1a1040 50%,#0d1530 100%)",
       border: "1px solid rgba(99,102,241,0.15)",
       boxShadow: "0 8px 48px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.2)",
     }}>
@@ -554,6 +586,17 @@ function IntroSlide({ agentName }: { agentName: string }) {
         background: "linear-gradient(90deg, transparent, rgba(129,140,248,0.4), transparent)",
         animation: show ? "fadeSlideUp 0.5s 0.7s ease both" : "none",
       }} />
+
+      {/* Keyboard hints */}
+      <div className="flex items-center gap-3 mt-1"
+        style={{ opacity: show ? 1 : 0, transition: "opacity 0.5s 0.9s ease" }}>
+        {[["Space", "pause"], ["←→", "navigate"], ["M", "mute"], ["Esc", "skip"]].map(([key, label]) => (
+          <div key={key} className="flex items-center gap-1">
+            <kbd className="text-[9px] font-mono text-white/25 bg-white/5 border border-white/10 rounded px-1 py-0.5">{key}</kbd>
+            <span className="text-[9px] text-white/20">{label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -604,7 +647,30 @@ function StatsSlide({ summary, queueLen }: { summary: OvernightSummary; queueLen
   )
 }
 
+// Character emoji by first letter of name
+const CHAR_EMOJI: Record<string, string> = {
+  A: "👩‍💼", B: "👨‍💼", C: "👩", D: "👨", E: "👩‍💻",
+  F: "👨‍💻", G: "👩‍🏫", H: "👨‍🏫", I: "👩", J: "👩‍💼",
+  K: "👩‍🎨", L: "👨‍🎨", M: "👨‍💼", N: "👩", O: "👨",
+  P: "👩", Q: "👨", R: "👨‍🏗️", S: "👩‍🏗️", T: "👨",
+  U: "👩", V: "👩‍⚕️", W: "👨‍⚕️", X: "👩", Y: "👨", Z: "👩‍🎤",
+}
+
+type BuySellCfg = { label: string; icon: string; color: string; bg: string; border: string }
+const BUY_SELL: Partial<Record<string, BuySellCfg>> = {
+  "High Interest": { label: "BUYER",  icon: "🏠", color: "#60a5fa", bg: "rgba(37,99,235,0.12)",  border: "rgba(37,99,235,0.3)"  },
+  "Seller Intent": { label: "SELLER", icon: "🏡", color: "#34d399", bg: "rgba(5,150,105,0.12)",  border: "rgba(5,150,105,0.3)"  },
+  "Buyer Match":   { label: "BUYER",  icon: "🏠", color: "#60a5fa", bg: "rgba(37,99,235,0.12)",  border: "rgba(37,99,235,0.3)"  },
+  "Showing":       { label: "BUYER",  icon: "🗓️", color: "#60a5fa", bg: "rgba(37,99,235,0.12)",  border: "rgba(37,99,235,0.3)"  },
+  "Deadline":      { label: "ACTIVE", icon: "⏰", color: "#fbbf24", bg: "rgba(217,119,6,0.12)",   border: "rgba(217,119,6,0.3)"  },
+  "Back-to-Site":  { label: "BUYER",  icon: "👁️", color: "#a78bfa", bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.3)" },
+  "Back-on-Market":{ label: "SELLER", icon: "🔄", color: "#34d399", bg: "rgba(5,150,105,0.12)",  border: "rgba(5,150,105,0.3)"  },
+}
+
 function LeadSlide({ item, rank, total }: { item: QueueItem; rank: number; total: number }) {
+  const charEmoji = CHAR_EMOJI[item.lead.name[0]?.toUpperCase()] ?? "👤"
+  const bs = BUY_SELL[item.lead.opportunity_type]
+
   return (
     <div className="w-full max-w-lg flex flex-col gap-4">
       {/* Header row */}
@@ -612,25 +678,37 @@ function LeadSlide({ item, rank, total }: { item: QueueItem; rank: number; total
         <div className="flex items-center gap-2">
           <span className="text-white/20 text-[10px] font-bold tracking-[0.2em] uppercase">#{rank} of {total}</span>
           <div className="w-px h-3 bg-white/10" />
-          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-            style={{ background: "rgba(99,102,241,0.12)", color: "#a78bfa", border: "1px solid rgba(99,102,241,0.15)" }}>
-            {item.lead.opportunity_type}
-          </span>
+          {/* Buy / Sell indicator */}
+          {bs && (
+            <span className="text-[11px] font-black px-3 py-1 rounded-full flex items-center gap-1.5"
+              style={{ background: bs.bg, color: bs.color, border: `1px solid ${bs.border}`, letterSpacing: "0.08em" }}>
+              {bs.icon} {bs.label}
+            </span>
+          )}
         </div>
         <ScoreRing score={item.lead.lead_score} />
       </div>
 
       {/* Lead info */}
       <div className="flex items-center gap-4" style={{ animation: "fadeSlideUp 0.4s 0.1s ease both" }}>
-        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-black shrink-0 relative"
-          style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 30px rgba(99,102,241,0.35)" }}>
-          {item.lead.name[0]}
-          {/* Status ring */}
-          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[8px]"
-            style={{ background: "#1a1040", border: "2px solid #6366f1" }}>
-            {rank <= 2 ? "🔥" : "•"}
+        {/* Avatar + character emoji */}
+        <div className="relative shrink-0">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-black"
+            style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 30px rgba(99,102,241,0.35)" }}>
+            {item.lead.name[0]}
+          </div>
+          {/* Character emoji floating top-right */}
+          <div className="absolute -top-3 -right-3 text-2xl leading-none select-none"
+            style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.5))", animation: "scaleIn 0.4s 0.15s ease both" }}>
+            {charEmoji}
+          </div>
+          {/* Status badge bottom-right */}
+          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
+            style={{ background: "#0d1030", border: `2px solid ${bs?.color ?? "#6366f1"}` }}>
+            {rank === 1 ? "🔥" : rank === 2 ? "⚡" : "•"}
           </div>
         </div>
+
         <div>
           <h3 className="text-2xl font-black text-white leading-tight">{item.lead.name}</h3>
           <div className="flex items-center gap-3 mt-1">

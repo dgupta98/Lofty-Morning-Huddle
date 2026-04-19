@@ -79,11 +79,11 @@ export function ActionCard({ item, index, onAction, isDragOver, onDragStart, onD
     <>
       <AnimatePresence>
         <div
-          draggable={mode === "idle"}
-          onDragStart={onDragStart}
-          onDragOver={onDragOver}
-          onDrop={onDrop}
-          onDragEnd={onDragEnd}
+          draggable={mode === "idle" && !isDragOver}
+          onDragStart={mode === "idle" ? onDragStart : undefined}
+          onDragOver={mode === "idle" ? onDragOver : undefined}
+          onDrop={mode === "idle" ? onDrop : undefined}
+          onDragEnd={mode === "idle" ? onDragEnd : undefined}
           style={{ cursor: mode === "idle" ? "grab" : "default" }}
         >
         <motion.div
@@ -102,7 +102,7 @@ export function ActionCard({ item, index, onAction, isDragOver, onDragStart, onD
             backdropFilter: "blur(20px) saturate(1.8)",
             WebkitBackdropFilter: "blur(20px) saturate(1.8)",
             border: isDragOver
-              ? "1.5px solid rgba(99,102,241,0.4)"
+              ? "2px solid rgba(99,102,241,0.5)"
               : mode === "approved"
               ? "1.5px solid rgba(34,197,94,0.4)"
               : "1px solid rgba(255,255,255,0.5)",
@@ -287,7 +287,7 @@ export function ActionCard({ item, index, onAction, isDragOver, onDragStart, onD
               <>
                 <div className="flex flex-wrap gap-2 mb-3">
                   <button onClick={() => executeAction("approve")}
-                    className="gradient-btn text-white text-xs font-bold px-5 py-2.5 rounded-xl">
+                    className="gradient-btn text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all hover:-translate-y-px active:scale-95">
                     ✓ Approve & Execute
                   </button>
                   {(["edit", "delegate", "snooze"] as const).map((action) => (
